@@ -30,6 +30,10 @@
 #include "Soundengine/MIDI/MidiParser.h"
 //#include "Soundengine/Sequencer/sequencer.h"
 #include "Soundengine/Soundengine.h"
+#include "Soundengine/FxBus.h"			// DJ filter: FX_DJFILTER, DJF_CENTER
+
+static void preset_djfCentreCut(void);
+static inline uint8_t preset_isDjfCut(uint16_t index);
 
 FRESULT preset_savePatternSD(uint8_t presetNr);
 //FRESULT preset_loadPatternSD(uint8_t presetNr);
@@ -528,6 +532,7 @@ void preset_init(uint8_t presetNr)
 
 	//copy parameters to edit buffer
 	memcpy(activeParameters, mainParameters[presetNr], sizeof(uint8_t) * END_OF_SOUND_PARAMETERS);
+	preset_djfCentreCut();
 	preset_sendDrumsetParameters();
 	//frontPanel_sendData(PRESET,PRESET_LOAD,presetNr);
 
@@ -597,6 +602,20 @@ static void preset_writeDrumsetData(uint8_t presetNr, uint8_t isMorph)
 }
 
 //----------------------------------------------------
+// DJ filter CUT is a performance control (like a DJ mixer filter knob), not part
+// of the sound: every kit load starts it in the centre (bypass). TYP, OUT, DB,
+// RES and on/off are kit settings and load as saved.
+static void preset_djfCentreCut(void)
+{
+	if(activeParameters[PAR_FX_TYPE] == FX_DJFILTER)
+		activeParameters[PAR_FX_P1] = DJF_CENTER;
+}
+// ...and kit morphing does not move it either (like the audio routing)
+static inline uint8_t preset_isDjfCut(uint16_t index)
+{
+	return (index == PAR_FX_P1) && (activeParameters[PAR_FX_TYPE] == FX_DJFILTER);
+}
+//----------------------------------------------------
 void preset_loadDrumsetRam(uint8_t presetNr, uint8_t isMorph, uint8_t sendImmediate)
 {
 	soundengine_process();
@@ -618,6 +637,8 @@ void preset_loadDrumsetRam(uint8_t presetNr, uint8_t isMorph, uint8_t sendImmedi
 
 
 		}
+		preset_djfCentreCut();
+
 		//if(activeParameters[PAR_PATTERN_MODE] = 1)
 		//load asociated morph kit as well
 		//morphParameters = mainParameters[activeParameters[PAR_MORPH_KIT_DEST]];
@@ -1981,8 +2002,8 @@ void preset_morph_tick()
 
 		uint8_t morph;
 
-		//Do not morph audio routing
-		if((morph_index >= PAR_AUDIO_OUT1) && (morph_index <= PAR_AUDIO_OUT6)) //morph_index++;
+		//Do not morph audio routing (nor the DJ filter CUT knob)
+		if(((morph_index >= PAR_AUDIO_OUT1) && (morph_index <= PAR_AUDIO_OUT6)) || preset_isDjfCut(morph_index)) //morph_index++;
 		{
 			//always use source kit (morph = 0) for audio routing
 			morph = 0;
@@ -2104,6 +2125,7 @@ void preset_morph(uint8_t morph, uint8_t forceResetIndex)
 //----------------------------------------------------
 uint8_t preset_getMorphValue(uint16_t index, uint8_t morph)
 {
+	if(preset_isDjfCut(index)) morph = 0;	// DJ filter CUT is not morphed
 	return interpolate(activeParameters[index],mainParameters[activeParameters[PAR_MORPH_TARGET]][index],morph);
 };
 //----------------------------------------------------
