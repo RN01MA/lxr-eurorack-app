@@ -49,6 +49,7 @@ static void getMenuItemNameForValue(const uint8_t menuId, const uint8_t curParmV
 // given a menu id returns the number of entries
 static uint8_t getMaxEntriesForMenu(uint8_t menuId);
 static uint8_t menu_formatDjfCut(uint16_t parNr, uint8_t curParmVal, char *buf);
+static void menu_djfApplyDefaults(void);
 // given a number, convert it to a note name
 static void setNoteName(uint8_t num, char *buf);
 
@@ -2747,20 +2748,58 @@ void menu_handleSongMenu(int8_t inc, uint8_t btnClicked)
 }
 #endif
 //-----------------------------------------------------------------
-// DJ filter CUT (stored 0..127 in PAR_FX_P1) is shown bipolar around the
-// centre: -64..-5 = low-pass, 'byp' = dead zone (60..68), +5..+63 = high-pass.
-// Only while the FX type is DJf; P1 keeps its 0..127 display for the others.
-// Returns 1 if it wrote the 3 chars to buf.
+// DJ filter CUT (stored 0..127 in PAR_FX_P1) is shown symmetric around the
+// centre, right aligned in 3 chars:  -60 .. -1 = low-pass, " x " = bypass
+// (60..67), 1 .. 60 = high-pass. Only while the FX type is DJf; P1 keeps its
+// 0..127 display for the other effects. Returns 1 if it wrote buf.
 static uint8_t menu_formatDjfCut(uint16_t parNr, uint8_t curParmVal, char *buf)
 {
 	if((parNr != PAR_FX_P1) || (fxBus.fxType != FX_DJFILTER))
 		return 0;
 
-	if(DjFilter_isCutBypass(curParmVal))
-		memcpy(buf, "byp", 3);
-	else
-		numtostrps(buf, (int8_t)((int16_t)curParmVal - DJF_CENTER));
+	const int8_t v = DjFilter_cutDisplayValue(curParmVal);
+	uint8_t mag = (uint8_t)(v < 0 ? -v : v);
+
+	if(v == 0)
+	{
+		memcpy(buf, " x ", 3);
+		return 1;
+	}
+
+	buf[0] = buf[1] = ' ';
+	buf[2] = (char)('0' + mag%10);
+	if(mag >= 10)
+	{
+		buf[1] = (char)('0' + mag/10);
+		if(v < 0) buf[0] = '-';		// "-60" / " 60"
+	}
+	else if(v < 0)
+		buf[1] = '-';				// " -5" / "  5"
 	return 1;
+}
+//-----------------------------------------------------------------
+// Selecting DJf on the TYP knob starts the filter from a known state: CUT in the
+// centre (bypass), 24 dB, the default resonance, filter on. CUT/RES share the
+// generic FX slots with the other effects, so without this the knob would
+// inherit e.g. the delay time and open as a closed low-pass. Only done for a
+// TYP change on the encoder: loading a kit saved with DJf keeps its values.
+static void menu_djfApplyDefaults(void)
+{
+	_Static_assert(PAR_FX_P1 >= 128 && PAR_FX_P1 < 255 && PAR_FX_P2 >= 128 && PAR_FX_P2 < 255 &&
+				   PAR_FX_REVERB_TYPE >= 128 && PAR_FX_REVERB_TYPE < 255 &&
+				   PAR_UNUSED_7 >= 128 && PAR_UNUSED_7 < 255, "DJ filter defaults are sent as CC2");
+	const struct { uint16_t par; uint8_t val; } def[] =
+	{
+		{PAR_FX_P1,				DJF_CENTER},
+		{PAR_FX_P2,				DJF_RES_DEFAULT},
+		{PAR_FX_REVERB_TYPE,	DJF_SLOPE_24},
+		{PAR_UNUSED_7,			DJF_STATE_ON},
+	};
+	for(uint8_t i=0; i<sizeof(def)/sizeof(def[0]); i++)
+	{
+		activeParameters[def[i].par] = def[i].val;
+		frontPanel_sendData(CC_2, (uint8_t)(def[i].par-128), def[i].val);
+	}
 }
 //-----------------------------------------------------------------
 // given a menu id returns the number of entries
@@ -3115,6 +3154,7 @@ static void menu_encoderChangeParameter(int8_t inc)
 	uint8_t *paramValue;
 
 	paramValue = &activeParameters[paramNr];
+	const uint8_t oldValue = *paramValue;		// DJ filter: detect TYP change to DJf
 
 	//increase parameter value
 	if(inc>0) //positive increase
@@ -3350,6 +3390,10 @@ static void menu_encoderChangeParameter(int8_t inc)
 	}
 	else // non sound parameters (ie current step data, etc)
 		menu_parseGlobalParam(paramNr,activeParameters[paramNr]);
+
+	// DJ filter selected on TYP -> start centred, 24 dB, default RES, on
+	if((paramNr == PAR_FX_TYPE) && (*paramValue == FX_DJFILTER) && (oldValue != FX_DJFILTER))
+		menu_djfApplyDefaults();
 
 	//frontPanel_sendData(0xb0,paramNr,*paramValue);
 }

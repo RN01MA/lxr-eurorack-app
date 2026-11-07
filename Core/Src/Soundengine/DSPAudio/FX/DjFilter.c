@@ -21,10 +21,10 @@ int djf_guardTrips = 0;			// host test only: counts state-guard restarts
 #endif
 
 
-// dead zone edges on the continuous 0..127 scale. Integer CUT 60..68 is
+// dead zone edges on the continuous 0..127 scale. Integer CUT 60..67 is
 // bypass; the .5 keeps modulated (non-integer) values consistent with that.
-#define DJF_ZONE_LO		((float)(DJF_CENTER - DJF_DEADZONE) - 0.5f)	// 59.5
-#define DJF_ZONE_HI		((float)(DJF_CENTER + DJF_DEADZONE) + 0.5f)	// 68.5
+#define DJF_ZONE_LO		((float)DJF_ZONE_FIRST - 0.5f)	// 59.5
+#define DJF_ZONE_HI		((float)DJF_ZONE_LAST + 0.5f)	// 67.5
 
 // mode/slope/enabled packed into one byte, to detect changes between blocks
 #define DJF_CONFIG(mode, slope24, enabled)	((uint8_t)((mode) | ((slope24)<<4) | ((enabled)<<5)))
@@ -119,8 +119,8 @@ void DjFilter_init(DjFilter* djf)
 //------------------------------------------------------------------------------
 /* Bipolar CUT:
  *   0 .. 59   low-pass,  DJF_LP_CLOSED_HZ .. DJF_LP_OPEN_HZ, exponential
- *  60 .. 68   bypass (dead zone)
- *  69 .. 127  high-pass, DJF_HP_OPEN_HZ .. DJF_HP_THIN_HZ, exponential
+ *  60 .. 67   bypass (dead zone)
+ *  68 .. 127  high-pass, DJF_HP_OPEN_HZ .. DJF_HP_THIN_HZ, exponential
  * Each half is normalised to the edge of the dead zone, so there is no jump
  * in cutoff when the knob enters or leaves the zone. */
 void DjFilter_setCut(DjFilter* djf, float cut01)

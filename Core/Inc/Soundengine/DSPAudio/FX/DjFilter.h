@@ -75,8 +75,17 @@
 #ifndef DJF_QFLOOR_SLOPE
 #define DJF_QFLOOR_SLOPE	(0.9f/9000.0f)	// +0.1 q per kHz
 #endif
-#define DJF_CENTER		64			// CUT value of the bypass centre (0..127 scale)
-#define DJF_DEADZONE	4			// +/- around centre that is bypass (60..68)
+// CUT knob layout, symmetric over the 128 values:
+//   0 .. 59   low-pass  (60 values, display -60 .. -1)
+//  60 .. 67   bypass    ( 8 values, display  x)
+//  68 .. 127  high-pass (60 values, display   1 .. 60)
+#define DJF_ZONE_FIRST	60			// first bypass value
+#define DJF_ZONE_LAST	67			// last bypass value
+#define DJF_CENTER		64			// CUT set when DJf is selected (inside the zone)
+
+// defaults set when DJf is selected on the TYP knob (not on kit load, so
+// kits saved with DJf keep their own values)
+#define DJF_RES_DEFAULT	70			// ~+3 dB at the cutoff with 24 dB: audible, no whistle
 
 // stored menu values (kit file)
 #define DJF_STATE_ON	0			// "on"  - default for kits that never used DJf
@@ -111,7 +120,15 @@ void DjFilter_markDirty(DjFilter* djf);
 // true if a CUT value (0..127) is inside the bypass dead zone
 static inline uint8_t DjFilter_isCutBypass(uint8_t cut127)
 {
-	return (cut127 >= DJF_CENTER-DJF_DEADZONE) && (cut127 <= DJF_CENTER+DJF_DEADZONE);
+	return (cut127 >= DJF_ZONE_FIRST) && (cut127 <= DJF_ZONE_LAST);
+}
+
+// CUT as shown on the display: -60..-1 (LP), 0 (bypass), 1..60 (HP)
+static inline int8_t DjFilter_cutDisplayValue(uint8_t cut127)
+{
+	if(cut127 < DJF_ZONE_FIRST)	return (int8_t)((int16_t)cut127 - DJF_ZONE_FIRST);	// 0 -> -60, 59 -> -1
+	if(cut127 > DJF_ZONE_LAST)	return (int8_t)((int16_t)cut127 - DJF_ZONE_LAST);	// 68 -> 1, 127 -> 60
+	return 0;
 }
 
 /* fxBuffer: interleaved stereo FX bus (L,R,L,R...), size frames.
