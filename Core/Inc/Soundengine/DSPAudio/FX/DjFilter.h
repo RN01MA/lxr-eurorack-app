@@ -43,6 +43,19 @@
 // 4.15/4.29 (-0.29 dB). Compensated per LP stage so bypass <-> LP is level matched.
 #define DJF_LP_MAKEUP		(4.29f/4.15f)
 
+// State guard. With loud broadband input (drums, saw) and low damping the SVF
+// integrators run away (softClipTwo grows ~x/15, it does not saturate), reach
+// inf/NaN and the output goes silent. The NaN check in ResonantFilter.c is
+// removed by -ffast-math, so the filter never recovered. The DJ filter therefore
+// runs the SVF in short sub blocks and bounds the states in between with a
+// bit-level test that -ffast-math cannot optimise away.
+#ifndef DJF_SUBBLOCK
+#define DJF_SUBBLOCK		8			// samples per SVF call
+#endif
+#ifndef DJF_STATE_LIMIT
+#define DJF_STATE_LIMIT		8.0f		// |s1|,|s2| bound (normal operation stays < ~3)
+#endif
+
 // RES 0..127 -> SVF damping q 1.0..0.02, continuous. (SVF_setReso jumps from
 // q 0.1 to 0.02 at RES 115, leaving RES 115..127 without effect.)
 #define DJF_Q_MIN			0.02f

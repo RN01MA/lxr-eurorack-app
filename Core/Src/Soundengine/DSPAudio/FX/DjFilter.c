@@ -26,6 +26,31 @@
 #define DJF_CONFIG(mode, slope24, enabled)	((uint8_t)((mode) | ((slope24)<<4) | ((enabled)<<5)))
 
 //------------------------------------------------------------------------------
+// inf/NaN -> 0, otherwise clamp to +/- DJF_STATE_LIMIT. Works on the raw bits:
+// with -ffast-math the compiler assumes floats are finite and would delete an
+// isnan()/x!=x test (that is what happens to removeMaliciousSample).
+static inline float DjFilter_boundState(float x)
+{
+	uint32_t u;
+	memcpy(&u, &x, sizeof(u));
+	if((u & 0x7f800000u) == 0x7f800000u)	return 0.f;
+	if(x >  DJF_STATE_LIMIT)				return  DJF_STATE_LIMIT;
+	if(x < -DJF_STATE_LIMIT)				return -DJF_STATE_LIMIT;
+	return x;
+}
+//------------------------------------------------------------------------------
+// one SVF stage over a block, in sub blocks with the state guard in between
+static void DjFilter_runStage(ResonantFilter* flt, uint8_t mode, int16_t* buf, uint16_t size)
+{
+	for(uint16_t off=0; off<size; off+=DJF_SUBBLOCK)
+	{
+		const uint16_t n = (size-off < DJF_SUBBLOCK) ? (uint16_t)(size-off) : DJF_SUBBLOCK;
+		SVF_calcBlockZDF(flt, mode, buf+off, (uint8_t)n);
+		flt->s1 = DjFilter_boundState(flt->s1);
+		flt->s2 = DjFilter_boundState(flt->s2);
+	}
+}
+//------------------------------------------------------------------------------
 static void DjFilter_resetStates(DjFilter* djf)
 {
 	for(uint8_t c=0;c<2;c++)
@@ -191,12 +216,12 @@ void DjFilter_process(DjFilter* djf, int16_t* fxBuffer, int16_t* out, uint16_t s
 		bufR[i] = fxBuffer[i*2+1];
 	}
 
-	SVF_calcBlockZDF(&djf->stage[0][0], mode, bufL, (uint8_t)size);
-	if(slope24) SVF_calcBlockZDF(&djf->stage[0][1], mode, bufL, (uint8_t)size);
+	DjFilter_runStage(&djf->stage[0][0], mode, bufL, (uint16_t)size);
+	if(slope24) DjFilter_runStage(&djf->stage[0][1], mode, bufL, (uint16_t)size);
 	if(channels == 2)
 	{
-		SVF_calcBlockZDF(&djf->stage[1][0], mode, bufR, (uint8_t)size);
-		if(slope24) SVF_calcBlockZDF(&djf->stage[1][1], mode, bufR, (uint8_t)size);
+		DjFilter_runStage(&djf->stage[1][0], mode, bufR, (uint16_t)size);
+		if(slope24) DjFilter_runStage(&djf->stage[1][1], mode, bufR, (uint16_t)size);
 	}
 
 	// level-match the low-pass to bypass (fastTanh small-signal gain, per stage)
