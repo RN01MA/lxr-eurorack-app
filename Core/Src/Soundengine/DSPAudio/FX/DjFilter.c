@@ -16,6 +16,10 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef DJF_HOST_TEST
+int djf_guardTrips = 0;			// host test only: counts state-guard restarts
+#endif
+
 
 // dead zone edges on the continuous 0..127 scale. Integer CUT 60..68 is
 // bypass; the .5 keeps modulated (non-integer) values consistent with that.
@@ -26,28 +30,36 @@
 #define DJF_CONFIG(mode, slope24, enabled)	((uint8_t)((mode) | ((slope24)<<4) | ((enabled)<<5)))
 
 //------------------------------------------------------------------------------
-// inf/NaN -> 0, otherwise clamp to +/- DJF_STATE_LIMIT. Works on the raw bits:
+// true for inf/NaN or a state beyond DJF_STATE_LIMIT. Works on the raw bits:
 // with -ffast-math the compiler assumes floats are finite and would delete an
 // isnan()/x!=x test (that is what happens to removeMaliciousSample).
-static inline float DjFilter_boundState(float x)
+static inline uint8_t DjFilter_stateBroken(float x)
 {
 	uint32_t u;
 	memcpy(&u, &x, sizeof(u));
-	if((u & 0x7f800000u) == 0x7f800000u)	return 0.f;
-	if(x >  DJF_STATE_LIMIT)				return  DJF_STATE_LIMIT;
-	if(x < -DJF_STATE_LIMIT)				return -DJF_STATE_LIMIT;
-	return x;
+	if((u & 0x7f800000u) == 0x7f800000u)	return 1;
+	return (x > DJF_STATE_LIMIT) || (x < -DJF_STATE_LIMIT);
 }
 //------------------------------------------------------------------------------
-// one SVF stage over a block, in sub blocks with the state guard in between
+// one SVF stage over a block, in sub blocks with the state guard in between.
+// Safety net only: the damping floor (DjFilter_applyQ) keeps the filter in its
+// stable region. A run-away stage is restarted from zero (a short click) rather
+// than clamped: a clamped state can latch at the limit and hold the filter in a
+// silent Nyquist oscillation.
 static void DjFilter_runStage(ResonantFilter* flt, uint8_t mode, int16_t* buf, uint16_t size)
 {
 	for(uint16_t off=0; off<size; off+=DJF_SUBBLOCK)
 	{
 		const uint16_t n = (size-off < DJF_SUBBLOCK) ? (uint16_t)(size-off) : DJF_SUBBLOCK;
 		SVF_calcBlockZDF(flt, mode, buf+off, (uint8_t)n);
-		flt->s1 = DjFilter_boundState(flt->s1);
-		flt->s2 = DjFilter_boundState(flt->s2);
+		if(DjFilter_stateBroken(flt->s1) || DjFilter_stateBroken(flt->s2))
+		{
+			flt->s1 = 0.f;
+			flt->s2 = 0.f;
+#ifdef DJF_HOST_TEST
+			djf_guardTrips++;
+#endif
+		}
 	}
 }
 //------------------------------------------------------------------------------
@@ -58,7 +70,21 @@ static void DjFilter_resetStates(DjFilter* djf)
 			SVF_reset(&djf->stage[c][s]);
 }
 //------------------------------------------------------------------------------
-// target cutoff in Hz -> normalised f + integrator gain, same clamps as Phase 0
+// damping actually used: the RES setting, but never below the stability floor
+// for the current cutoff (see DJF_QFLOOR_* in DjFilter.h)
+static void DjFilter_applyQ(DjFilter* djf)
+{
+	float q = 1.f - djf->reso*(1.f - DJF_Q_MIN);	// RES 0..127 -> q 1.0..0.02, continuous
+	const float floorQ = (djf->hz - DJF_QFLOOR_START_HZ) * DJF_QFLOOR_SLOPE;
+	if(q < floorQ)	q = floorQ;
+	if(q > 1.f)		q = 1.f;
+
+	for(uint8_t c=0;c<2;c++)
+		for(uint8_t s=0;s<2;s++)
+			djf->stage[c][s].q = q;
+}
+//------------------------------------------------------------------------------
+// target cutoff in Hz -> normalised f + integrator gain
 static void DjFilter_setHz(DjFilter* djf, float hz)
 {
 	float fn = hz / REAL_FS;			// 44140 Hz
@@ -123,7 +149,9 @@ void DjFilter_setCut(DjFilter* djf, float cut01)
 		hz = DJF_HP_OPEN_HZ * powf(DJF_HP_THIN_HZ/DJF_HP_OPEN_HZ, w);
 		djf->mode = FILTER_HP;
 	}
+	djf->hz = hz;
 	DjFilter_setHz(djf, hz);
+	DjFilter_applyQ(djf);
 }
 //------------------------------------------------------------------------------
 void DjFilter_setReso(DjFilter* djf, float reso01)
@@ -131,12 +159,7 @@ void DjFilter_setReso(DjFilter* djf, float reso01)
 	if(reso01 < 0.f) reso01 = 0.f;
 	if(reso01 > 1.f) reso01 = 1.f;
 	djf->reso = reso01;
-
-	// continuous damping, same end points as SVF_setReso (1.0 .. 0.02)
-	const float q = 1.f - reso01*(1.f - DJF_Q_MIN);
-	for(uint8_t c=0;c<2;c++)
-		for(uint8_t s=0;s<2;s++)
-			djf->stage[c][s].q = q;
+	DjFilter_applyQ(djf);
 }
 //------------------------------------------------------------------------------
 void DjFilter_setState(DjFilter* djf, uint8_t menuValue)

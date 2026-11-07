@@ -43,22 +43,38 @@
 // 4.15/4.29 (-0.29 dB). Compensated per LP stage so bypass <-> LP is level matched.
 #define DJF_LP_MAKEUP		(4.29f/4.15f)
 
-// State guard. With loud broadband input (drums, saw) and low damping the SVF
-// integrators run away (softClipTwo grows ~x/15, it does not saturate), reach
-// inf/NaN and the output goes silent. The NaN check in ResonantFilter.c is
-// removed by -ffast-math, so the filter never recovered. The DJ filter therefore
-// runs the SVF in short sub blocks and bounds the states in between with a
-// bit-level test that -ffast-math cannot optimise away.
+// State guard (safety net behind the damping floor below). With loud input and
+// low damping at high cutoff the SVF integrators run away (softClipTwo grows
+// ~x/15, it does not saturate) into inf/NaN or a Nyquist limit cycle, and the
+// output goes silent. The NaN check in ResonantFilter.c is removed by
+// -ffast-math. The DJ filter runs the SVF in short sub blocks and restarts a
+// stage whose state is non-finite or beyond the limit (bit-level test that
+// -ffast-math cannot optimise away).
 #ifndef DJF_SUBBLOCK
 #define DJF_SUBBLOCK		8			// samples per SVF call
 #endif
 #ifndef DJF_STATE_LIMIT
-#define DJF_STATE_LIMIT		8.0f		// |s1|,|s2| bound (normal operation stays < ~3)
+#define DJF_STATE_LIMIT		8.0f		// |s1|,|s2| beyond this = run-away (normal < ~3)
 #endif
 
 // RES 0..127 -> SVF damping q 1.0..0.02, continuous. (SVF_setReso jumps from
 // q 0.1 to 0.02 at RES 115, leaving RES 115..127 without effect.)
 #define DJF_Q_MIN			0.02f
+
+// High-cutoff damping floor. Above ~11 kHz the nonlinear SVF falls into a
+// full-scale limit cycle at Nyquist (inaudible = output goes silent) once the
+// damping q is low and the bus is loud. Mapped on hardware-equivalent host
+// tests (drums / noise at 0 dBFS, 12 and 24 dB, LP and HP):
+//   unstable when q < 0.15 @12.4k, < 0.25 @13.2k, < 0.35 @14-15k,
+//                 < 0.5 @15.9-17k, < 0.7 @17.7-19.4k
+// The floor rises linearly from DJF_QFLOOR_START_HZ and sits well above that
+// boundary: resonance fades out in the top octave, below it RES is untouched.
+#ifndef DJF_QFLOOR_START_HZ
+#define DJF_QFLOOR_START_HZ	10000.0f
+#endif
+#ifndef DJF_QFLOOR_SLOPE
+#define DJF_QFLOOR_SLOPE	(0.9f/9000.0f)	// +0.1 q per kHz
+#endif
 #define DJF_CENTER		64			// CUT value of the bypass centre (0..127 scale)
 #define DJF_DEADZONE	4			// +/- around centre that is bypass (60..68)
 
@@ -74,6 +90,7 @@ typedef struct DjFilterStruct
 
 	float cut;					// 0..1 (CUT/127, may be modulated)
 	float reso;					// 0..1 (RES/127)
+	float hz;					// current cutoff [Hz] (LP or HP)
 
 	uint8_t mode;				// FILTER_LP, FILTER_HP or FILTER_OFF (dead zone)
 	uint8_t enabled;			// 1 = filter active, 0 = bypass (DJF param)
