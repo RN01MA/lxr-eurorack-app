@@ -34,6 +34,7 @@
 
 static void preset_djfCentreCut(void);
 static inline uint8_t preset_isDjfCut(uint16_t index);
+static inline uint8_t preset_isFxBusSwitch(uint16_t index);
 
 FRESULT preset_savePatternSD(uint8_t presetNr);
 //FRESULT preset_loadPatternSD(uint8_t presetNr);
@@ -614,6 +615,15 @@ static void preset_djfCentreCut(void)
 static inline uint8_t preset_isDjfCut(uint16_t index)
 {
 	return (index == PAR_FX_P1) && (activeParameters[PAR_FX_TYPE] == FX_DJFILTER);
+}
+// FX bus switches are not morphed either; they stay as in the current kit, like
+// the voice audio routing. Interpolated as plain numbers they would step
+// through values: TYP DJf->off morphs through del, cmp, rng and drv, OUT jumps
+// St1->St2->St3, DJF on/off and 12/24 dB flip half way.
+static inline uint8_t preset_isFxBusSwitch(uint16_t index)
+{
+	return (index == PAR_FX_TYPE) || (index == PAR_FX_ROUTING) ||
+		   (index == PAR_FX_REVERB_TYPE) /* DJF 12/24 dB */ || (index == PAR_UNUSED_7) /* DJF on/off */;
 }
 //----------------------------------------------------
 void preset_loadDrumsetRam(uint8_t presetNr, uint8_t isMorph, uint8_t sendImmediate)
@@ -2002,8 +2012,8 @@ void preset_morph_tick()
 
 		uint8_t morph;
 
-		//Do not morph audio routing (nor the DJ filter CUT knob)
-		if(((morph_index >= PAR_AUDIO_OUT1) && (morph_index <= PAR_AUDIO_OUT6)) || preset_isDjfCut(morph_index)) //morph_index++;
+		//Do not morph audio routing (nor the FX bus switches and the DJ filter CUT knob)
+		if(((morph_index >= PAR_AUDIO_OUT1) && (morph_index <= PAR_AUDIO_OUT6)) || preset_isFxBusSwitch(morph_index) || preset_isDjfCut(morph_index)) //morph_index++;
 		{
 			//always use source kit (morph = 0) for audio routing
 			morph = 0;
@@ -2125,7 +2135,7 @@ void preset_morph(uint8_t morph, uint8_t forceResetIndex)
 //----------------------------------------------------
 uint8_t preset_getMorphValue(uint16_t index, uint8_t morph)
 {
-	if(preset_isDjfCut(index)) morph = 0;	// DJ filter CUT is not morphed
+	if(preset_isFxBusSwitch(index) || preset_isDjfCut(index)) morph = 0;	// FX bus switches and DJ filter CUT are not morphed
 	return interpolate(activeParameters[index],mainParameters[activeParameters[PAR_MORPH_TARGET]][index],morph);
 };
 //----------------------------------------------------
