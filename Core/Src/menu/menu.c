@@ -48,6 +48,7 @@ static void upr_three(char *buf);
 static void getMenuItemNameForValue(const uint8_t menuId, const uint8_t curParmVal, char *buf);
 // given a menu id returns the number of entries
 static uint8_t getMaxEntriesForMenu(uint8_t menuId);
+static uint8_t menu_formatDjfCut(uint16_t parNr, uint8_t curParmVal, char *buf);
 // given a number, convert it to a note name
 static void setNoteName(uint8_t num, char *buf);
 
@@ -257,6 +258,11 @@ const Name valueNames[NUM_NAMES] =
 
 		{SHORT_CV, CAT_GLOBAL, LONG_CV},/*TEXT_CV_SAVE*/
 		{SHORT_MORPH_TARGET, CAT_SOUND, LONG_MORPH_TARGET},/*TEXT_MORPH_TARGET*/
+
+		{SHORT_DJF, CAT_FX, LONG_DJ_FILTER},/*TEXT_FX_DJF_STATE*/
+		{SHORT_DB, CAT_FX, LONG_SLOPE_DB},/*TEXT_FX_DJF_SLOPE*/
+		{SHORT_CUT, CAT_FX, LONG_CUTOFF},/*TEXT_FX_DJF_CUT*/
+		{SHORT_FIL_RESO, CAT_FX, LONG_RESONANCE},/*TEXT_FX_DJF_RESO*/
 
 
 
@@ -493,7 +499,7 @@ const enum Datatypes PROGMEM parameter_dtypes[NUM_PARAMS] = {
 	    /*CV_1VOCT_4*/		DTYPE_NOTE_NAME,
 	    /*CV_1VOCT_5*/		DTYPE_NOTE_NAME,
 	    /*CV_1VOCT_6*/		DTYPE_NOTE_NAME,
-	    /*PAR_UNUSED7*/		DTYPE_NOTE_NAME,
+	    /*PAR_UNUSED7*/		DTYPE_MENU | (MENU_DJF_STATE<<8),	// reused: DJ filter on/off
 
 		/*PAR_PWM_1,*/			DTYPE_0B127,
 		/*PAR_PWM_2,*/			DTYPE_0B127,
@@ -513,7 +519,7 @@ const enum Datatypes PROGMEM parameter_dtypes[NUM_PARAMS] = {
 		/*PAR_FX_P4*/			DTYPE_0B127,
 		/*PAR_FX_RATIO*/		DTYPE_MENU | (MENU_RATIO<<8),
 		/*PAR_FX_WAVE*/			DTYPE_MENU | (MENU_WAVEFORM<<8),
-		/*PAR_FX_REVERB_TYPE*/	DTYPE_MENU | (MENU_REVERB<<8),
+		/*PAR_FX_REVERB_TYPE*/	DTYPE_MENU | (MENU_DJF_SLOPE<<8),	// reused (reverb disabled): DJ filter 12/24 dB
 		/*PAR_FX_DELAY_TYPE*/	DTYPE_MENU | (MENU_DELAY<<8),
 		/*PAR_MORPH_KIT_DEST*/	DTYPE_0B127,
 
@@ -1698,7 +1704,11 @@ void menu_repaintGeneric()
 				(const char PROGMEM *)(&longNames[pgm_read_byte(&valueNames[parName].longName)]));
 
 			//Bottom row -> parameter value (set below)
-			switch(parameter_dtypes[parNr] & 0xFF)
+			if(menu_formatDjfCut(parNr, curParmVal, &editDisplayBuffer[1][13]))
+			{
+				// DJ filter CUT: bipolar value, handled above
+			}
+			else switch(parameter_dtypes[parNr] & 0xFF)
 			{
 			case DTYPE_TARGET_SELECTION_CV:
 			case DTYPE_TARGET_SELECTION_VELO: //switch(parameters_dtypes[parNr] & 0x0F)
@@ -1835,6 +1845,8 @@ void menu_repaintGeneric()
 			//convert the parameter uint8_t value to a 3 place char
 			if(parNr==PAR_NONE) {
 				memcpy(valueAsText,menuText_blank,3);
+			} else if(menu_formatDjfCut(parNr, curParmVal, valueAsText)) {
+				// DJ filter CUT: bipolar value, handled above
 			} else { //not if(parNr==PAR_NONE)
 
 				switch(parameter_dtypes[parNr] & 0xFF) {
@@ -2734,6 +2746,23 @@ void menu_handleSongMenu(int8_t inc, uint8_t btnClicked)
 
 }
 #endif
+//-----------------------------------------------------------------
+// DJ filter CUT (stored 0..127 in PAR_FX_P1) is shown bipolar around the
+// centre: -64..-5 = low-pass, 'byp' = dead zone (60..68), +5..+63 = high-pass.
+// Only while the FX type is DJf; P1 keeps its 0..127 display for the others.
+// Returns 1 if it wrote the 3 chars to buf.
+static uint8_t menu_formatDjfCut(uint16_t parNr, uint8_t curParmVal, char *buf)
+{
+	if((parNr != PAR_FX_P1) || (fxBus.fxType != FX_DJFILTER))
+		return 0;
+
+	if(DjFilter_isCutBypass(curParmVal))
+		memcpy(buf, "byp", 3);
+	else
+		numtostrps(buf, (int8_t)((int16_t)curParmVal - DJF_CENTER));
+	return 1;
+}
+//-----------------------------------------------------------------
 // given a menu id returns the number of entries
 static uint8_t getMaxEntriesForMenu(uint8_t menuId)
 {
@@ -2806,6 +2835,12 @@ static uint8_t getMaxEntriesForMenu(uint8_t menuId)
 
 	case MENU_CV_SAVE:
 		return cvSaveNames[0][0];
+
+	case MENU_DJF_STATE:
+		return djfStateNames[0][0];
+
+	case MENU_DJF_SLOPE:
+		return djfSlopeNames[0][0];
 
 	default:
 		return 0;
@@ -2921,6 +2956,15 @@ static void getMenuItemNameForValue(const uint8_t menuId, const uint8_t curParmV
 	case MENU_CV_SAVE:
 		p=cvSaveNames[curParmVal+1];
 			break;
+
+	// the DJ filter reuses kit slots that old kits may hold other values in
+	case MENU_DJF_STATE:
+		p = (curParmVal < djfStateNames[0][0]) ? djfStateNames[curParmVal+1] : menuText_dash;
+		break;
+
+	case MENU_DJF_SLOPE:
+		p = (curParmVal < djfSlopeNames[0][0]) ? djfSlopeNames[curParmVal+1] : menuText_dash;
+		break;
 
 
 	default:

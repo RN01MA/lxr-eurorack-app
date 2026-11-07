@@ -40,6 +40,11 @@ uint8_t midiParser_originalCcValues[0xff];
 static uint32_t volatile midiParser_lastMtcReceived=0x0;
 //static uint8_t midiParser_mtcIsRunning=0;
 
+// DJ filter switches live in reused kit slots; CC2 numbers must stay aligned
+_Static_assert(CC2_FX_REVERB_TYPE == PAR_FX_REVERB_TYPE-128, "CC2/PAR mismatch: DJ filter slope slot");
+_Static_assert(CC2_UNUSED7 == PAR_UNUSED_7-128, "CC2/PAR mismatch: DJ filter on/off slot");
+_Static_assert(CC2_FX_P1 == PAR_FX_P1-128, "CC2/PAR mismatch: DJ filter cut slot");
+
 static union {
 	uint8_t value;
 	struct {
@@ -1572,7 +1577,13 @@ void midiParser_ccHandler(MidiMsg msg, uint8_t updateOriginalValue, uint8_t isFl
 				break;
 
 			case CC2_FX_REVERB_TYPE:
+				// reverb is disabled (USE_REVERB 0) - slot reused for the DJ filter slope
+				DjFilter_setSlope(&fxBus.djFilter, value.itg);
+				break;
 
+			case CC2_UNUSED7:
+				// free slot reused for the DJ filter on/off (bypass) switch
+				DjFilter_setState(&fxBus.djFilter, value.itg);
 				break;
 
 			case CC2_FX_DELAY_TYPE:

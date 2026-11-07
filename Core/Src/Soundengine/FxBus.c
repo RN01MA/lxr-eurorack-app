@@ -30,6 +30,7 @@ void FxBus_init()
 	Ringmod_init(&fxBus.ringmod);
 	Compressor_init(&fxBus.compressor);
 	Delay_init(&fxBus.delay);
+	DjFilter_init(&fxBus.djFilter);
 
 
 
@@ -69,6 +70,9 @@ IN_ITCM_RAM void FxBus_process(int16_t *fxBuffer, int16_t* outL,int16_t* outR,in
 		break;
 
 	}
+
+	// DJ filter states go stale while another FX type runs -> clear on return
+	if(fxBus.fxType != FX_DJFILTER) fxBus.djFilter.stateDirty = 1;
 
 	switch(fxBus.fxType)
 	{
@@ -124,6 +128,11 @@ IN_ITCM_RAM void FxBus_process(int16_t *fxBuffer, int16_t* outL,int16_t* outR,in
 			Delay_processPingPong(&fxBus.delay, fxBuffer, out, out2, size, channels, fxBus.dryWet);
 		}
 		break;
+
+	case FX_DJFILTER:
+		// full wet by design: voices routed to FX leave the dry mix (router)
+		DjFilter_process(&fxBus.djFilter, fxBuffer, out, (uint16_t)size, channels);
+		break;
 #if USE_REVERB
 	case FX_REVERB:
 		Reverb_process(&fxBus.reverb, fxBuffer, out, out2, size, channels, fxBus.dryWet);
@@ -174,6 +183,11 @@ IN_ITCM_RAM void FxBus_updateParameter()
 		Delay_setFilter(&fxBus.delay, fxBus.parameter[2]);
 		Delay_setFeedback(&fxBus.delay, fxBus.parameter[3]);
 
+		break;
+
+	case FX_DJFILTER:
+		DjFilter_setCut(&fxBus.djFilter, fxBus.parameter[0]);	// CUT, bipolar
+		DjFilter_setReso(&fxBus.djFilter, fxBus.parameter[1]);	// RES
 		break;
 #if USE_REVERB
 	case FX_REVERB:

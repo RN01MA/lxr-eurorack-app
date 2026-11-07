@@ -278,6 +278,12 @@ enum NamesEnum
 	TEXT_CV_SAVE,
 	TEXT_MORPH_TARGET,
 
+	// DJ filter FX page (appended, keeps all existing ids)
+	TEXT_FX_DJF_STATE,
+	TEXT_FX_DJF_SLOPE,
+	TEXT_FX_DJF_CUT,
+	TEXT_FX_DJF_RESO,
+
 
 	NUM_NAMES
 };
@@ -391,6 +397,9 @@ enum shortNamesEnum
 	SHORT_1VOCT,
 	SHORT_CV,
 	SHORT_MORPH_TARGET,
+	SHORT_DJF,
+	SHORT_DB,
+	SHORT_CUT,
 
 	
 };
@@ -524,7 +533,10 @@ enum longNamesEnum
 	LONG_SRC,
 	LONG_1VOCT,
 	LONG_CV,
-	LONG_MORPH_TARGET
+	LONG_MORPH_TARGET,
+	LONG_DJ_FILTER,
+	LONG_SLOPE_DB,
+	LONG_CUTOFF
 	
 };
 

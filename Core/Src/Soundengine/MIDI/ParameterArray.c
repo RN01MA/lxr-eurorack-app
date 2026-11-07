@@ -748,6 +748,8 @@ void parameterArray_init()
 	parameterArray[PAR_FX_WAVE].ptr 		= &fxBus.ringmod.osc.waveform;
 	parameterArray[PAR_FX_WAVE].type 		= TYPE_UINT8;
 
+	// PAR_FX_REVERB_TYPE (DJ filter 12/24 dB) and PAR_UNUSED_7 (DJ filter on/off)
+	// deliberately have no ptr: switches, not modulation targets.
 	parameterArray[PAR_FX_DELAY_TYPE].ptr 		= &fxBus.delay.delayType;
 	parameterArray[PAR_FX_DELAY_TYPE].type 		= TYPE_UINT8;
 

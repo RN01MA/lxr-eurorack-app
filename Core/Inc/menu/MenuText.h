@@ -45,6 +45,8 @@
 #define MENU_CV_SRC			26
 #define MENU_CV_SAVE		27
 #define MENU_AUDIO_OUT_FX	28
+#define MENU_DJF_STATE		29
+#define MENU_DJF_SLOPE		30
 
 //-----------------------------------------------------------------
 // Shared texts. Reduce mem usage by pooling common text
@@ -167,13 +169,31 @@ const char ratioNames[][4] =
 //-----------------------------------------------------------------
 const char fxNames[][4] =
 {
-	{5},		//number of entries
+	{6},		//number of entries
 	{"off"},
 	{"drv"},
 	{"rng"},
 	{"cmp"},
 	{"del"},
+	{"DJf"},	// FX_DJFILTER
 	//{"rev"}
+};
+//-----------------------------------------------------------------
+// DJ filter on/off. index 0 = on, so kits that never used DJf (value 0)
+// get a working filter when TYP is switched to DJf (DJF_STATE_ON/OFF)
+const char djfStateNames[][4] =
+{
+	{2},		//number of entries
+	{"on"},
+	{"off"},
+};
+//-----------------------------------------------------------------
+// DJ filter slope (DJF_SLOPE_12/24)
+const char djfSlopeNames[][4] =
+{
+	{2},		//number of entries
+	{"12"},
+	{"24"},
 };
 //-----------------------------------------------------------------
 const char distNames[][4] =
@@ -523,6 +543,9 @@ const char shortNames[][4]  =
 	{"v/o"},
 	{"cv"},
 	{"mtg"},
+	{"djf"},
+	{"db"},
+	{"cut"},
 
 };
 //-----------------------------------------------------------------
@@ -658,6 +681,9 @@ const char longNames[][16] =
 	{"1V/Oct"},
 	{"CV Save"},
 	{"MrphTrgt"},
+	{"DJ Filtr"},
+	{"Slope dB"},
+	{"Cutoff"},
 };
 
 

@@ -1,0 +1,92 @@
+/*
+ * DjFilter.h
+ *
+ * Bipolar DJ filter for the FX bus (FX type "DJf").
+ * CUT below centre = low-pass sweep, centre dead zone = bypass,
+ * CUT above centre = high-pass sweep. 12 dB (1 SVF stage) or
+ * 24 dB (2 cascaded stages). Reuses the voice SVF (SVF_calcBlockZDF),
+ * no new DSP.
+ *
+ * Copyright (C) 2012-2026 Erica Synths
+ * SPDX-License-Identifier: GPL-3.0-only
+ *
+ * This file is part of the LXR firmware. It is licensed under the GNU General
+ * Public License version 3, with the additional permission and terms in
+ * NOTICE.md. See LICENSE and NOTICE.md in the root of the repository.
+ */
+
+#ifndef INC_SOUNDENGINE_DSPAUDIO_FX_DJFILTER_H_
+#define INC_SOUNDENGINE_DSPAUDIO_FX_DJFILTER_H_
+
+#include <stdint.h>
+#include "Soundengine/DSPAudio/ResonantFilter.h"
+
+//---- tuning ------------------------------------------------------------
+// Sweep end points. The two "open" values sit at the edges of the dead zone
+// and are chosen so entering/leaving bypass is (nearly) inaudible: the SVF at
+// RES 0 is heavily damped, its -3 dB point is well away from the set cutoff.
+// #ifndef so they can be tuned from the build (-D) while listening.
+#ifndef DJF_LP_CLOSED_HZ
+#define DJF_LP_CLOSED_HZ	20.0f		// CUT 0   : low-pass fully closed
+#endif
+#ifndef DJF_LP_OPEN_HZ
+#define DJF_LP_OPEN_HZ		19860.0f	// CUT 59  : = SVF stability clamp 0.45*FS
+#endif
+#ifndef DJF_HP_OPEN_HZ
+#define DJF_HP_OPEN_HZ		6.0f		// CUT 69  : below the sub range, 40 Hz loses only -0.3 dB here
+#endif
+#ifndef DJF_HP_THIN_HZ
+#define DJF_HP_THIN_HZ		18000.0f	// CUT 127 : high-pass, only top end left (spec open question: 8-18k)
+#endif
+
+// The SVF low-pass output goes through fastTanh, whose small-signal gain is
+// 4.15/4.29 (-0.29 dB). Compensated per LP stage so bypass <-> LP is level matched.
+#define DJF_LP_MAKEUP		(4.29f/4.15f)
+
+// RES 0..127 -> SVF damping q 1.0..0.02, continuous. (SVF_setReso jumps from
+// q 0.1 to 0.02 at RES 115, leaving RES 115..127 without effect.)
+#define DJF_Q_MIN			0.02f
+#define DJF_CENTER		64			// CUT value of the bypass centre (0..127 scale)
+#define DJF_DEADZONE	4			// +/- around centre that is bypass (60..68)
+
+// stored menu values (kit file)
+#define DJF_STATE_ON	0			// "on"  - default for kits that never used DJf
+#define DJF_STATE_OFF	1			// "off" - bus passes through dry
+#define DJF_SLOPE_12	0
+#define DJF_SLOPE_24	1
+
+typedef struct DjFilterStruct
+{
+	ResonantFilter stage[2][2];	// [channel L/R][cascade 1/2]
+
+	float cut;					// 0..1 (CUT/127, may be modulated)
+	float reso;					// 0..1 (RES/127)
+
+	uint8_t mode;				// FILTER_LP, FILTER_HP or FILTER_OFF (dead zone)
+	uint8_t enabled;			// 1 = filter active, 0 = bypass (DJF param)
+	uint8_t slope24;			// 0 = 12 dB/oct, 1 = 24 dB/oct
+
+	uint8_t lastConfig;			// mode/slope/enabled used for the previous block
+	uint8_t stateDirty;			// set when the filter states must be cleared
+} DjFilter;
+
+void DjFilter_init(DjFilter* djf);
+void DjFilter_setCut(DjFilter* djf, float cut01);
+void DjFilter_setReso(DjFilter* djf, float reso01);
+void DjFilter_setState(DjFilter* djf, uint8_t menuValue);	// DJF_STATE_ON / DJF_STATE_OFF
+void DjFilter_setSlope(DjFilter* djf, uint8_t menuValue);	// DJF_SLOPE_12 / DJF_SLOPE_24
+// mark filter states stale (FX type switched away, etc.)
+void DjFilter_markDirty(DjFilter* djf);
+
+// true if a CUT value (0..127) is inside the bypass dead zone
+static inline uint8_t DjFilter_isCutBypass(uint8_t cut127)
+{
+	return (cut127 >= DJF_CENTER-DJF_DEADZONE) && (cut127 <= DJF_CENTER+DJF_DEADZONE);
+}
+
+/* fxBuffer: interleaved stereo FX bus (L,R,L,R...), size frames.
+ * out: interleaved output (stereo when channels == 2, otherwise every 2nd
+ * sample, like the other FX). The result is added (saturating) to out. */
+void DjFilter_process(DjFilter* djf, int16_t* fxBuffer, int16_t* out, uint16_t size, uint8_t channels);
+
+#endif /* INC_SOUNDENGINE_DSPAUDIO_FX_DJFILTER_H_ */

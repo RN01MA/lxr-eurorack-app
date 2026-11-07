@@ -22,8 +22,16 @@
 #include "Soundengine/DSPAudio/FX/Compressor.h"
 #include "Soundengine/DSPAudio/FX/Delay.h"
 #include "Soundengine/DSPAudio/FX/Reverb.h"
+#include "Soundengine/DSPAudio/FX/DjFilter.h"
 
 #define USE_REVERB 0
+
+#if USE_REVERB
+/* The DJ filter reuses the reverb's menu/kit slot (PAR_FX_REVERB_TYPE) for its
+ * 12/24 dB switch, and the FX sub page index 5. Re-enabling the reverb needs
+ * those to be split up again. */
+#error "USE_REVERB conflicts with FX_DJFILTER (shared PAR_FX_REVERB_TYPE slot)"
+#endif
 
 enum FxTypeEnum
 {
@@ -32,6 +40,7 @@ enum FxTypeEnum
 	FX_RING,
 	FX_COMPRESSOR,
 	FX_DELAY,
+	FX_DJFILTER,	// bipolar DJ filter. index 5 = FX sub page 5 in menuPages.h
 #if USE_REVERB
 	FX_REVERB
 #endif
@@ -51,6 +60,7 @@ typedef struct FxStruct
 	Ringmod ringmod;
 	Compressor compressor;
 	Delay delay;
+	DjFilter djFilter;
 
 
 
