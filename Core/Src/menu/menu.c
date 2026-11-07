@@ -4415,6 +4415,8 @@ uint8_t menu_parseKnobValue(uint8_t potNr, int16_t diff)
 	}
 #endif
 
+	const uint8_t oldValue = activeParameters[paramNr];	// DJ filter: detect TYP change to DJf
+
 	//update parameter value to the new value
 	//mainParameters[paramNr] = dtypeValue;
 	if(paramNr >= END_OF_SOUND_PARAMETERS)
@@ -4628,6 +4630,14 @@ uint8_t menu_parseKnobValue(uint8_t potNr, int16_t diff)
 			menu_parseGlobalParam(paramNr,dtypeValue);
 		break;
 	}
+	}
+
+	// DJ filter selected on TYP (one of the 4 page encoders) -> start centred,
+	// 24 dB, default RES, on. This is the knob path used on the module.
+	if((paramNr == PAR_FX_TYPE) && (activeParameters[paramNr] == FX_DJFILTER) && (oldValue != FX_DJFILTER))
+	{
+		menu_djfApplyDefaults();
+		menu_repaintAll();
 	}
 
 	return 1;
