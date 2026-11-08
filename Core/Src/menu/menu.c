@@ -2023,9 +2023,9 @@ void menu_repaint()
 	}
 	else if((menu_activePage == RND_PAGE) && RndUi_paint(editDisplayBuffer))
 	{
-		// kit randomizer overlay: lock view while DRUM is held, result after a new kit
+		// kit randomizer: recipe per voice while PERF is held
 	}
-	else if(buttonHandler_getDrumButton())
+	else if(buttonHandler_getDrumButton() && (menu_activePage != RND_PAGE))	// DRUM = new kit there, not voice select
 	{
 		strcpy(&editDisplayBuffer[0][0], "Selected Drum ");
 

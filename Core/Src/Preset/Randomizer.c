@@ -3,8 +3,8 @@
  *
  * Built-in kit randomizer, generator part (phase 1).
  *
- * How a kit is made, per unlocked voice:
- *   1. pick an archetype for the voice (TYP pool, weights shift with VAR)
+ * How a kit is made, per voice that is rolled:
+ *   1. pick an archetype for the voice (TYP pool and its weights)
  *   2. reset the voice to neutral engine defaults (init kit), so nothing of
  *      the previous sound leaks into the new one
  *   3. archetype recipe: every value is centre +- range * spread
@@ -452,7 +452,7 @@ static const RndArch arch[RND_A_COUNT] =
 };
 
 //---- pools ----------------------------------------------------------------
-typedef struct { uint8_t a; uint8_t w0, w1; } PoolEntry;	// weight at VAR 0 / VAR 127
+typedef struct { uint8_t a; uint8_t w0, w1; } PoolEntry;	// weights at spread 0 / 1 (blended by the type's spread)
 #define POOL_MAX 12
 
 typedef struct { uint8_t n; PoolEntry e[POOL_MAX]; } Pool;
@@ -889,7 +889,7 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 
 	if(isKick)
 	{
-		// the kick must stay good at VAR 127: proven bounds
+		// the CLS kick must always stay good: proven bounds
 		setRole(p, v, R_MODAMT,   clampi(getRole(p, v, R_MODAMT), 55, 115));
 		setRole(p, v, R_AEGD,     clampi(getRole(p, v, R_AEGD), 14, 46));
 		setRole(p, v, R_FILTFREQ, clampi(getRole(p, v, R_FILTFREQ), 96, 127));

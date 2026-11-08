@@ -322,7 +322,7 @@ static void buttonHandler_handleModeButtons(uint8_t mode) {
 #endif
 	}
 
-	//leaving the kit randomizer: its voice LEDs (locks) go off
+	//leaving the kit randomizer page: its voice LEDs go off
 	if(buttonHandler_stateMemory.selectButtonMode == SELECT_MODE_RND && mode != SELECT_MODE_RND)
 	{
 		RndUi_leave();
@@ -1626,7 +1626,7 @@ void buttonHandler_voiceButtonReleased(uint8_t voiceNr)
 		fxRoute_voicePressed(voiceNr);
 		return;
 	}
-	//kit randomizer: trigger (audition) or, with DRUM held, lock / unlock
+	//kit randomizer page: voice buttons audition (held + DRUM = roll only them)
 	if(menu_activePage == RND_PAGE)
 	{
 		RndUi_voicePressed(voiceNr);
@@ -1905,7 +1905,7 @@ void buttonHandler_buttonPressed(uint8_t buttonNr) {
 
 	case BUT_1:
 
-		//kit randomizer: DRUM = new kit / lock modifier
+		//kit randomizer page: DRUM = new kit (or only the held voices)
 		if(buttonHandler_stateMemory.selectButtonMode == SELECT_MODE_RND)
 		{
 			RndUi_drumPressed();
@@ -2445,7 +2445,7 @@ void buttonHandler_buttonReleased(uint8_t buttonNr)
 	case BUT_1:
 		if((buttonNr == BUT_1) && (buttonHandler_getMode() == SELECT_MODE_RND))
 		{
-			RndUi_drumReleased();	//DRUM tap = new kit
+			RndUi_drumReleased();	//nothing to do, the kit was made on the press
 			break;
 		}
 		led_setValue(0, LED_1);

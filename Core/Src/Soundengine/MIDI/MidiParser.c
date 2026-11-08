@@ -33,7 +33,7 @@
 
 static uint16_t midiParser_activeNrpnNumber = 0;
 
-uint8_t midiParser_originalCcValues[0xff];
+uint8_t midiParser_originalCcValues[0x100];	// was 0xff: CC2 data1 127 wrote 1 byte past the end
 
 // this will be set to some value if we are ignoring all mtc messages until the next 0 message
 //static uint8_t midiParser_mtcIgnore=1;

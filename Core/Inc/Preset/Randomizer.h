@@ -41,7 +41,7 @@ typedef struct RandomizerConfigStruct
 	uint8_t mod;		// 1 = one LFO route per voice (free / LFO slots only), 0 = LFO routes
 						// of the regenerated voices removed; cv1..cv5 / accent never touched
 	uint8_t hz;			// RND_HZ_OFF / SOFT / HARD
-	uint8_t lockMask;	// bit n set = voice n+1 locked (left untouched)
+	uint8_t lockMask;	// bit n set = voice n+1 left untouched (not rolled)
 } RandomizerConfig;
 
 // archetype ids (result / display)
