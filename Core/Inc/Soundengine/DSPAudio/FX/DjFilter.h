@@ -108,8 +108,8 @@
 #endif
 
 // stored menu values (kit file)
-#define DJF_STATE_ON	0			// "on"  - default for kits that never used DJf
-#define DJF_STATE_OFF	1			// "off" - bus passes through dry
+#define DJF_STATE_OFF	0			// "off" - bus passes through dry (encoder left)
+#define DJF_STATE_ON	1			// "on"  (encoder right); set when DJf is selected
 #define DJF_SLOPE_12	0
 #define DJF_SLOPE_24	1
 

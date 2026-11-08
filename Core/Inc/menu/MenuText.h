@@ -182,13 +182,13 @@ const char fxNames[][4] =
 	//{"rev"}
 };
 //-----------------------------------------------------------------
-// DJ filter on/off. index 0 = on, so kits that never used DJf (value 0)
-// get a working filter when TYP is switched to DJf (DJF_STATE_ON/OFF)
+// DJ filter on/off: left = off, right = on (DJF_STATE_OFF/ON). Selecting DJf
+// on TYP switches it on, so kits that never used DJf start with a working filter
 const char djfStateNames[][4] =
 {
 	{2},		//number of entries
-	{"on"},
 	{"off"},
+	{"on"},
 };
 //-----------------------------------------------------------------
 // DJ filter slope (DJF_SLOPE_12/24)
