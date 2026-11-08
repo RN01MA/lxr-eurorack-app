@@ -54,7 +54,7 @@ static uint32_t rnd_counter;
 static const char rnd_keyText[12][3] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 
 //--------------------------------------------------------------------------
-// held voice buttons -> voices to keep (button 7 = open hihat = V6)
+// held voice buttons -> voice mask (button 7 = open hihat = V6)
 static uint8_t heldVoices()
 {
 	uint8_t m = 0;
@@ -85,14 +85,18 @@ static void generate()
 	c.key      = activeParameters[PAR_RND_KEY] ? (int8_t)(activeParameters[PAR_RND_KEY] - 1) : RND_KEY_OFF;
 	c.mod      = activeParameters[PAR_RND_MOD] ? 1 : 0;
 	c.hz       = activeParameters[PAR_RND_HZ];
-	c.lockMask = heldVoices();		// voices held while DRUM is pressed stay as they are
-
-	if((c.lockMask & ALL_VOICES) == ALL_VOICES) return;	// nothing to do
+	// DRUM alone = whole kit; voice(s) held + DRUM = only those voices are rolled
+	const uint8_t held = heldVoices();
+	c.lockMask = held ? (uint8_t)(ALL_VOICES & ~held) : 0;
 
 	// TRNG + time of the press + click counter
 	const uint32_t seed = GetRngValue() ^ (systick_ticks * 2654435761u) ^ (++rnd_counter << 20);
 
-	Randomizer_generate(activeParameters, &c, seed, &rnd_result);
+	RandomizerResult res;
+	Randomizer_generate(activeParameters, &c, seed, &res);
+	// recipe view: voices not rolled keep the recipe they got earlier
+	for(uint8_t v=0; v<6; v++)
+		if(res.arch[v] != RND_A_LOCKED || !rnd_haveResult) rnd_result.arch[v] = res.arch[v];
 	rnd_lastCfg = c;
 	rnd_haveResult = 1;
 
@@ -235,7 +239,7 @@ uint8_t RndUi_paint(char buf[2][17])
 	}
 	else
 	{
-		// recipe per voice of the last new kit, kept voices = "---"
+		// recipe per voice ("---" = never rolled since power on)
 		// "KIK REE FLD  EXP"
 		// "SNR CYM HAT   A#"
 		for(uint8_t v=0; v<6; v++)

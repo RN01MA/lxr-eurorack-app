@@ -7,9 +7,9 @@
  *                          PERF brings back the randomizer page
  *   PERF held           -> recipe per voice on the display
  *   DRUM (on its page)  -> new kit right on the press
- *   hold voice(s) + DRUM-> the held voices are left as they are
+ *   hold voice(s) + DRUM-> only the held voices are rolled (DRUM alone: whole kit)
  *   voice buttons       -> trigger the voice (audition, like PERF)
- *   voice LEDs          -> bar over the 7 voice buttons after a new kit
+ *   voice LEDs          -> bar over the rolled voices' buttons
  *
  * Copyright (C) 2012-2026 Erica Synths
  * SPDX-License-Identifier: GPL-3.0-only
