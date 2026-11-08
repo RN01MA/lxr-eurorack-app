@@ -33,10 +33,22 @@
 #define DJF_LP_OPEN_HZ		19860.0f	// CUT 59  : = SVF stability clamp 0.45*FS
 #endif
 #ifndef DJF_HP_OPEN_HZ
-#define DJF_HP_OPEN_HZ		6.0f		// CUT 69  : below the sub range, 40 Hz loses only -0.3 dB here
+#define DJF_HP_OPEN_HZ		3.0f		// CUT +1 (with the curve): 11 Hz, 40 Hz loses ~1 dB at 24 dB
 #endif
 #ifndef DJF_HP_THIN_HZ
 #define DJF_HP_THIN_HZ		18000.0f	// CUT 127 : high-pass, only top end left (spec open question: 8-18k)
+#endif
+
+// Knob curve. Plain exponential (1.0) spends the first ~8 steps next to the
+// zone in the inaudible top octave (LP) / sub-sonic range (HP). An exponent < 1
+// moves the cutoff faster right after the zone and finer towards the far end.
+// Tuned on the host: the change is audible from step 3-4 next to the zone
+// (LP: top end -3 dB at -4, HP: lows -4.5 dB at +4), step 1 stays gentle.
+#ifndef DJF_LP_CURVE
+#define DJF_LP_CURVE		0.65f		// -4: 6.6 kHz, -30: 250 Hz, -50: 44 Hz
+#endif
+#ifndef DJF_HP_CURVE
+#define DJF_HP_CURVE		0.4f		// +4: 79 Hz, +20: 1 kHz, +50: 10 kHz
 #endif
 
 // The SVF low-pass output goes through fastTanh, whose small-signal gain is
@@ -77,7 +89,7 @@
 #endif
 // CUT knob layout, symmetric over the 128 values:
 //   0 .. 59   low-pass  (60 values, display -60 .. -1)
-//  60 .. 67   bypass    ( 8 values, display  x)
+//  60 .. 67   bypass    ( 8 values, display  0)
 //  68 .. 127  high-pass (60 values, display   1 .. 60)
 #define DJF_ZONE_FIRST	60			// first bypass value
 #define DJF_ZONE_LAST	67			// last bypass value

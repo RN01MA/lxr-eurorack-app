@@ -2749,7 +2749,7 @@ void menu_handleSongMenu(int8_t inc, uint8_t btnClicked)
 #endif
 //-----------------------------------------------------------------
 // DJ filter CUT (stored 0..127 in PAR_FX_P1) is shown symmetric around the
-// centre, right aligned in 3 chars:  -60 .. -1 = low-pass, " x " = bypass
+// centre, right aligned in 3 chars:  -60 .. -1 = low-pass, "  0" = bypass
 // (60..67), 1 .. 60 = high-pass. Only while the FX type is DJf; P1 keeps its
 // 0..127 display for the other effects. Returns 1 if it wrote buf.
 static uint8_t menu_formatDjfCut(uint16_t parNr, uint8_t curParmVal, char *buf)
@@ -2762,7 +2762,7 @@ static uint8_t menu_formatDjfCut(uint16_t parNr, uint8_t curParmVal, char *buf)
 
 	if(v == 0)
 	{
-		memcpy(buf, " x ", 3);
+		memcpy(buf, "  0", 3);		// bypass, aligned like the numbers
 		return 1;
 	}
 

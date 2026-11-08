@@ -89,7 +89,7 @@ static void DjFilter_setHz(DjFilter* djf, float hz)
 {
 	float fn = hz / REAL_FS;			// 44140 Hz
 	if(fn > 0.45f) 		fn = 0.45f;		// SVF stability clamp
-	if(fn < 0.0001f) 	fn = 0.0001f;		// 4.4 Hz, lets the HP start below the sub range
+	if(fn < 0.00005f) 	fn = 0.00005f;		// 2.2 Hz, lets the HP start below the sub range
 
 	for(uint8_t c=0;c<2;c++)
 		for(uint8_t s=0;s<2;s++)
@@ -139,14 +139,14 @@ void DjFilter_setCut(DjFilter* djf, float cut01)
 	}
 	else if(c < DJF_ZONE_LO)
 	{
-		const float u = c / DJF_ZONE_LO;							// 0..1
-		hz = DJF_LP_CLOSED_HZ * powf(DJF_LP_OPEN_HZ/DJF_LP_CLOSED_HZ, u);
+		const float d = (DJF_ZONE_LO - c) / DJF_ZONE_LO;			// 0 at the zone .. 1 closed
+		hz = DJF_LP_OPEN_HZ * powf(DJF_LP_CLOSED_HZ/DJF_LP_OPEN_HZ, powf(d, DJF_LP_CURVE));
 		djf->mode = FILTER_LP;
 	}
 	else
 	{
-		const float w = (c - DJF_ZONE_HI) / (127.f - DJF_ZONE_HI);	// 0..1
-		hz = DJF_HP_OPEN_HZ * powf(DJF_HP_THIN_HZ/DJF_HP_OPEN_HZ, w);
+		const float w = (c - DJF_ZONE_HI) / (127.f - DJF_ZONE_HI);	// 0 at the zone .. 1 thin
+		hz = DJF_HP_OPEN_HZ * powf(DJF_HP_THIN_HZ/DJF_HP_OPEN_HZ, powf(w, DJF_HP_CURVE));
 		djf->mode = FILTER_HP;
 	}
 	djf->hz = hz;
