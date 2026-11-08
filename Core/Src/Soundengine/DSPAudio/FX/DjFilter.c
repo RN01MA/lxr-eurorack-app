@@ -26,8 +26,9 @@ int djf_guardTrips = 0;			// host test only: counts state-guard restarts
 #define DJF_ZONE_LO		((float)DJF_ZONE_FIRST - 0.5f)	// 59.5
 #define DJF_ZONE_HI		((float)DJF_ZONE_LAST + 0.5f)	// 67.5
 
-// mode/slope/enabled packed into one byte, to detect changes between blocks
-#define DJF_CONFIG(mode, slope24, enabled)	((uint8_t)((mode) | ((slope24)<<4) | ((enabled)<<5)))
+// keeps the compiler from moving the parameter stores after the mode store:
+// the audio interrupt must never see a new mode with the old cutoff
+#define DJF_COMPILER_BARRIER()	__asm volatile ("" ::: "memory")
 
 //------------------------------------------------------------------------------
 // true for inf/NaN or a state beyond DJF_STATE_LIMIT. Works on the raw bits:
@@ -63,13 +64,6 @@ static void DjFilter_runStage(ResonantFilter* flt, uint8_t mode, int16_t* buf, u
 	}
 }
 //------------------------------------------------------------------------------
-static void DjFilter_resetStates(DjFilter* djf)
-{
-	for(uint8_t c=0;c<2;c++)
-		for(uint8_t s=0;s<2;s++)
-			SVF_reset(&djf->stage[c][s]);
-}
-//------------------------------------------------------------------------------
 // damping actually used: the RES setting, but never below the stability floor
 // for the current cutoff (see DJF_QFLOOR_* in DjFilter.h)
 static void DjFilter_applyQ(DjFilter* djf)
@@ -79,9 +73,7 @@ static void DjFilter_applyQ(DjFilter* djf)
 	if(q < floorQ)	q = floorQ;
 	if(q > 1.f)		q = 1.f;
 
-	for(uint8_t c=0;c<2;c++)
-		for(uint8_t s=0;s<2;s++)
-			djf->stage[c][s].q = q;
+	djf->setQ = q;		// applied by DjFilter_process
 }
 //------------------------------------------------------------------------------
 // target cutoff in Hz -> normalised f + integrator gain
@@ -91,11 +83,23 @@ static void DjFilter_setHz(DjFilter* djf, float hz)
 	if(fn > 0.45f) 		fn = 0.45f;		// SVF stability clamp
 	if(fn < 0.00005f) 	fn = 0.00005f;		// 2.2 Hz, lets the HP start below the sub range
 
+	ResonantFilter tmp;					// same integrator gain as the SVF computes
+	tmp.f = fn;
+	SVF_recalcFreq(&tmp);
+	djf->setF = fn;						// applied by DjFilter_process
+	djf->setG = tmp.g;
+}
+//------------------------------------------------------------------------------
+// audio side: copy the prepared cutoff / damping into the running stages
+static void DjFilter_applySettings(DjFilter* djf)
+{
+	const float f = djf->setF, g = djf->setG, q = djf->setQ;
 	for(uint8_t c=0;c<2;c++)
 		for(uint8_t s=0;s<2;s++)
 		{
-			djf->stage[c][s].f = fn;
-			SVF_recalcFreq(&djf->stage[c][s]);
+			djf->stage[c][s].f = f;
+			djf->stage[c][s].g = g;
+			djf->stage[c][s].q = q;
 		}
 }
 //------------------------------------------------------------------------------
@@ -110,10 +114,14 @@ void DjFilter_init(DjFilter* djf)
 			djf->stage[c][s].drive = 1.0f;	// unity input level into the SVF
 		}
 	DjFilter_setReso(djf, 0.f);
+	DjFilter_setHz(djf, DJF_LP_OPEN_HZ);	// something valid until the first CUT
+	DjFilter_applySettings(djf);
 
 	djf->enabled 	= 1;
 	djf->slope24 	= 0;
 	djf->stateDirty = 1;
+	djf->runMode	= FILTER_OFF;
+	djf->wet		= 0.f;
 	DjFilter_setCut(djf, DJF_CENTER/127.f);
 }
 //------------------------------------------------------------------------------
@@ -132,6 +140,8 @@ void DjFilter_setCut(DjFilter* djf, float cut01)
 	const float c = cut01 * 127.f;
 	float hz;
 
+	uint8_t mode;
+
 	if(c >= DJF_ZONE_LO && c <= DJF_ZONE_HI)
 	{
 		djf->mode = FILTER_OFF;
@@ -141,17 +151,19 @@ void DjFilter_setCut(DjFilter* djf, float cut01)
 	{
 		const float d = (DJF_ZONE_LO - c) / DJF_ZONE_LO;			// 0 at the zone .. 1 closed
 		hz = DJF_LP_OPEN_HZ * powf(DJF_LP_CLOSED_HZ/DJF_LP_OPEN_HZ, powf(d, DJF_LP_CURVE));
-		djf->mode = FILTER_LP;
+		mode = FILTER_LP;
 	}
 	else
 	{
 		const float w = (c - DJF_ZONE_HI) / (127.f - DJF_ZONE_HI);	// 0 at the zone .. 1 thin
 		hz = DJF_HP_OPEN_HZ * powf(DJF_HP_THIN_HZ/DJF_HP_OPEN_HZ, powf(w, DJF_HP_CURVE));
-		djf->mode = FILTER_HP;
+		mode = FILTER_HP;
 	}
 	djf->hz = hz;
 	DjFilter_setHz(djf, hz);
 	DjFilter_applyQ(djf);
+	DJF_COMPILER_BARRIER();
+	djf->mode = mode;		// last: cutoff and damping are in place before the mode
 }
 //------------------------------------------------------------------------------
 void DjFilter_setReso(DjFilter* djf, float reso01)
@@ -170,11 +182,6 @@ void DjFilter_setState(DjFilter* djf, uint8_t menuValue)
 void DjFilter_setSlope(DjFilter* djf, uint8_t menuValue)
 {
 	djf->slope24 = (menuValue == DJF_SLOPE_24) ? 1 : 0;
-}
-//------------------------------------------------------------------------------
-void DjFilter_markDirty(DjFilter* djf)
-{
-	djf->stateDirty = 1;
 }
 //------------------------------------------------------------------------------
 static void DjFilter_addDry(const int16_t* fxBuffer, int16_t* out, uint16_t size, uint8_t channels)
@@ -201,34 +208,59 @@ static void DjFilter_addDry(const int16_t* fxBuffer, int16_t* out, uint16_t size
 	}
 }
 //------------------------------------------------------------------------------
+// fresh filter states for a new mode. The low-pass integrator is preset to the
+// current input so the LP starts where the dry signal is (from zero it would
+// begin at silence and rise = a thump); the HP starts at zero, which already
+// passes the input.
+static void DjFilter_startStates(DjFilter* djf, const int16_t* fxBuffer)
+{
+	for(uint8_t c=0;c<2;c++)
+	{
+		const float x0 = (djf->runMode == FILTER_LP) ? fxBuffer[c] / 32767.f : 0.f;
+		for(uint8_t s=0;s<2;s++)
+		{
+			SVF_reset(&djf->stage[c][s]);
+			djf->stage[c][s].s2 = x0;
+		}
+	}
+}
+//------------------------------------------------------------------------------
 void DjFilter_process(DjFilter* djf, int16_t* fxBuffer, int16_t* out, uint16_t size, uint8_t channels)
 {
-	// sample the control state once per block (it may be changed from the parser)
-	const uint8_t mode 		= djf->mode;
-	const uint8_t slope24 	= djf->slope24;
-	const uint8_t enabled 	= djf->enabled;
+	// what the controls ask for (sampled once per block)
+	const uint8_t wantMode	= djf->enabled ? djf->mode : FILTER_OFF;
+	const uint8_t wantSlope	= djf->slope24;
 
-	const uint8_t config = DJF_CONFIG(mode, slope24, enabled);
-	if(config != djf->lastConfig)
+	if(djf->stateDirty)		// another FX type ran: start again from dry
 	{
-		// LP <-> bypass <-> HP, 12 <-> 24 dB, on <-> off: the integrator
-		// states belong to a different filter now -> start clean (no thump
-		// from stale state when e.g. a resonant LP jumps over to HP)
-		djf->stateDirty = 1;
-		djf->lastConfig = config;
+		djf->stateDirty	= 0;
+		djf->runMode	= FILTER_OFF;
+		djf->wet		= 0.f;
 	}
 
-	if(!enabled || mode == FILTER_OFF || size > OUTPUT_DMA_SIZE)
+	// The running filter only changes while fully dry: fade out with the old
+	// settings, switch, fade in with the new ones.
+	if(djf->runMode == FILTER_OFF && wantMode != FILTER_OFF)
 	{
-		DjFilter_addDry(fxBuffer, out, size, channels);
+		djf->runMode	= wantMode;
+		djf->runSlope24	= wantSlope;
+		DjFilter_startStates(djf, fxBuffer);
+	}
+	const uint8_t sameConfig = (djf->runMode == wantMode) && (djf->runSlope24 == wantSlope);
+	const float target = sameConfig ? 1.f : 0.f;
+
+	// new cutoff / resonance only for the filter they were set for; a filter
+	// that is fading out keeps its own (no LP retuned to the HP cutoff)
+	if(sameConfig) DjFilter_applySettings(djf);
+
+	if(djf->runMode == FILTER_OFF || size > OUTPUT_DMA_SIZE)
+	{
+		DjFilter_addDry(fxBuffer, out, size, channels);		// bit exact bypass
 		return;
 	}
 
-	if(djf->stateDirty)
-	{
-		DjFilter_resetStates(djf);
-		djf->stateDirty = 0;
-	}
+	const uint8_t mode		= djf->runMode;
+	const uint8_t slope24	= djf->runSlope24;
 
 	// de-interleave the stereo bus, the SVF works on contiguous blocks
 	int16_t bufL[OUTPUT_DMA_SIZE];
@@ -256,6 +288,23 @@ void DjFilter_process(DjFilter* djf, int16_t* fxBuffer, int16_t* out, uint16_t s
 			bufL[i] = (int16_t)__SSAT((int32_t)(bufL[i]*makeup), 16);
 			bufR[i] = (int16_t)__SSAT((int32_t)(bufR[i]*makeup), 16);
 		}
+	}
+
+	// crossfade dry <-> filtered while a change is in progress
+	if(djf->wet != target)
+	{
+		const float step = 1.f / DJF_FADE_SAMPLES;
+		float g = djf->wet;
+		for(uint16_t i=0;i<size;i++)
+		{
+			if(g < target)	{ g += step; if(g > target) g = target; }
+			else			{ g -= step; if(g < target) g = target; }
+			const float dl = fxBuffer[i*2], dr = fxBuffer[i*2+1];
+			bufL[i] = (int16_t)__SSAT((int32_t)(dl + g*(bufL[i] - dl)), 16);
+			bufR[i] = (int16_t)__SSAT((int32_t)(dr + g*(bufR[i] - dr)), 16);
+		}
+		djf->wet = g;
+		if(g <= 0.f) djf->runMode = FILTER_OFF;		// faded out: next block switches
 	}
 
 	if(channels == 2)

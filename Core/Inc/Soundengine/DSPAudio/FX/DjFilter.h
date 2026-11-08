@@ -99,6 +99,14 @@
 // kits saved with DJf keep their own values)
 #define DJF_RES_DEFAULT	70			// ~+3 dB at the cutoff with 24 dB: audible, no whistle
 
+// Crossfade between dry and filtered on every mode change (leaving / entering
+// the centre, LP<->HP, 12<->24 dB, on/off, selecting DJf). Without it the
+// switch is a hard step: a freshly started low-pass begins at 0, the HP is
+// phase shifted, a loud LP is slightly softer than dry (fastTanh).
+#ifndef DJF_FADE_SAMPLES
+#define DJF_FADE_SAMPLES	192			// 4.3 ms
+#endif
+
 // stored menu values (kit file)
 #define DJF_STATE_ON	0			// "on"  - default for kits that never used DJf
 #define DJF_STATE_OFF	1			// "off" - bus passes through dry
@@ -113,12 +121,21 @@ typedef struct DjFilterStruct
 	float reso;					// 0..1 (RES/127)
 	float hz;					// current cutoff [Hz] (LP or HP)
 
-	uint8_t mode;				// FILTER_LP, FILTER_HP or FILTER_OFF (dead zone)
-	uint8_t enabled;			// 1 = filter active, 0 = bypass (DJF param)
-	uint8_t slope24;			// 0 = 12 dB/oct, 1 = 24 dB/oct
+	// control side (written from the menu/parser, read by the audio interrupt).
+	// Cutoff and damping are prepared here and applied by DjFilter_process at
+	// the start of a block, so a running filter is never changed mid-block.
+	volatile float setF;		// normalised cutoff for SVF .f
+	volatile float setG;		// integrator gain for SVF .g
+	volatile float setQ;		// damping for SVF .q
+	volatile uint8_t mode;		// FILTER_LP, FILTER_HP or FILTER_OFF (dead zone)
+	volatile uint8_t enabled;	// 1 = filter active, 0 = bypass (DJF param)
+	volatile uint8_t slope24;	// 0 = 12 dB/oct, 1 = 24 dB/oct
+	volatile uint8_t stateDirty;// restart from dry (set while another FX type runs)
 
-	uint8_t lastConfig;			// mode/slope/enabled used for the previous block
-	uint8_t stateDirty;			// set when the filter states must be cleared
+	// audio side (only touched by DjFilter_process)
+	uint8_t runMode;			// filter mode actually running (FILTER_OFF = dry)
+	uint8_t runSlope24;			// slope actually running
+	float wet;					// crossfade position dry 0 .. filtered 1
 } DjFilter;
 
 void DjFilter_init(DjFilter* djf);
@@ -126,8 +143,6 @@ void DjFilter_setCut(DjFilter* djf, float cut01);
 void DjFilter_setReso(DjFilter* djf, float reso01);
 void DjFilter_setState(DjFilter* djf, uint8_t menuValue);	// DJF_STATE_ON / DJF_STATE_OFF
 void DjFilter_setSlope(DjFilter* djf, uint8_t menuValue);	// DJF_SLOPE_12 / DJF_SLOPE_24
-// mark filter states stale (FX type switched away, etc.)
-void DjFilter_markDirty(DjFilter* djf);
 
 // true if a CUT value (0..127) is inside the bypass dead zone
 static inline uint8_t DjFilter_isCutBypass(uint8_t cut127)
