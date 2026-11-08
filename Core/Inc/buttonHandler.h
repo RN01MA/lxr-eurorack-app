@@ -78,6 +78,9 @@ enum SelectModes
 	SELECT_MODE_LAST_STEP_TRACK,
 	SELECT_MODE_LAST_STEP_ALL,
 #endif
+#if EURORACK_MODULE
+	SELECT_MODE_RND,		// kit randomizer (SHIFT+PERF), = 8
+#endif
 
 };
 		

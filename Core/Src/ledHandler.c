@@ -659,6 +659,10 @@ void led_setMode2(uint8_t status)
 				led_setBlinkLed(LED_SAVE_LOAD,1);
 			break;
 
+			case SELECT_MODE_RND: //kit randomizer
+				led_setBlinkLed(LED_PERF,1);
+			break;
+
 
 			default:
 			break;

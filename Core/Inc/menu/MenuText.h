@@ -47,6 +47,9 @@
 #define MENU_AUDIO_OUT_FX	28
 #define MENU_DJF_STATE		29
 #define MENU_DJF_SLOPE		30
+#define MENU_RND_TYPE		31
+#define MENU_RND_KEY		32
+#define MENU_RND_HZ			33
 
 //-----------------------------------------------------------------
 // Shared texts. Reduce mem usage by pooling common text
@@ -194,6 +197,38 @@ const char djfSlopeNames[][4] =
 	{2},		//number of entries
 	{"12"},
 	{"24"},
+};
+//-----------------------------------------------------------------
+// kit randomizer: type (RND_TYPE_CLS/EXP), key (COA), spectral slotting (RND_HZ_x)
+const char rndTypeNames[][4] =
+{
+	{2},		//number of entries
+	{"CLS"},
+	{"EXP"},
+};
+const char rndKeyNames[][4] =
+{
+	{13},		//number of entries
+	{"off"},
+	{"C"},
+	{"C#"},
+	{"D"},
+	{"D#"},
+	{"E"},
+	{"F"},
+	{"F#"},
+	{"G"},
+	{"G#"},
+	{"A"},
+	{"A#"},
+	{"B"},
+};
+const char rndHzNames[][4] =
+{
+	{3},		//number of entries
+	{"Off"},
+	{"Sft"},
+	{"Hrd"},
 };
 //-----------------------------------------------------------------
 const char distNames[][4] =
@@ -546,6 +581,8 @@ const char shortNames[][4]  =
 	{"djf"},
 	{"db"},
 	{"cut"},
+	{"var"},
+	{"hz"},
 
 };
 //-----------------------------------------------------------------
@@ -583,6 +620,7 @@ const char catNames[][16] =
 	{"Clock"},
 	{"Fx"},
 	{"Mod"},
+	{"Rnd Kit"},
 };
 //-----------------------------------------------------------------
 // these must correspond to longNamesEnum
@@ -684,6 +722,10 @@ const char longNames[][16] =
 	{"DJ Filtr"},
 	{"Slope dB"},
 	{"Cutoff"},
+	{"Key"},
+	{"LFO Rout"},
+	{"Variatn"},
+	{"Spectrum"},
 };
 
 

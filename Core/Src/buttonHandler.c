@@ -28,6 +28,7 @@
 #include "Soundengine/FxBus.h"
 #include "Soundengine/MIDI/MidiVoiceControl.h"
 #include <Soundengine/TriggerProcessor.h>
+#include "Preset/RandomizerUi.h"
 
 //used to remember the last active page when entering the sequencer mode
 //needed to return to the previously shown page when seq mode button is released
@@ -320,6 +321,12 @@ static void buttonHandler_handleModeButtons(uint8_t mode) {
 #endif
 	}
 
+	//leaving the kit randomizer: its voice LEDs (locks) go off
+	if(buttonHandler_stateMemory.selectButtonMode == SELECT_MODE_RND && mode != SELECT_MODE_RND)
+	{
+		RndUi_leave();
+	}
+
 	//toggle for mod matrix only
 	uint8_t toggle = (buttonHandler_stateMemory.selectButtonMode  == mode);
 
@@ -345,7 +352,7 @@ static void buttonHandler_handleModeButtons(uint8_t mode) {
 		//mode = buttonHandler_stateMemory.selectButtonMode == mode ? SELECT_MODE_SAVE : mode;
 	}
 
-	buttonHandler_stateMemory.selectButtonMode = (uint8_t) (mode & 0x07);
+	buttonHandler_stateMemory.selectButtonMode = (uint8_t) (mode & 0x0F);	// 4 bit field, SELECT_MODE_RND = 8
 	mode = buttonHandler_stateMemory.selectButtonMode;
 
 	led_clearAllBlinkLeds();
@@ -485,6 +492,13 @@ static void buttonHandler_handleModeButtons(uint8_t mode) {
 			led_clearAllBlinkLeds();
 			led_setMode2(buttonHandler_stateMemory.selectButtonMode);
 			menu_switchPage(MENU_MIDI_PAGE);
+			break;
+
+		//kit randomizer: PERF LED blinks, again SHIFT+PERF flips the two screens
+		case SELECT_MODE_RND:
+			led_setMode2(SELECT_MODE_RND);
+			menu_enterRandomizerPage(toggle);
+			RndUi_enter();
 			break;
 	}
 #else
@@ -1581,6 +1595,13 @@ static void buttonHandler_partButtonReleased(uint8_t partNr)
 
 void buttonHandler_voiceButtonReleased(uint8_t voiceNr)
 {
+#if EURORACK_MODULE
+	if(menu_activePage == RND_PAGE)
+	{
+		RndUi_voiceReleased(voiceNr);
+		return;
+	}
+#endif
 
 	if (menu_activePage == PERF_PAGE)
 	{
@@ -1596,6 +1617,14 @@ void buttonHandler_voiceButtonReleased(uint8_t voiceNr)
 // one of the 7 voice buttons pressed
  void buttonHandler_voiceButtonPressed(uint8_t voiceNr)
 {
+#if EURORACK_MODULE
+	//kit randomizer: trigger (audition) or, with DRUM held, lock / unlock
+	if(menu_activePage == RND_PAGE)
+	{
+		RndUi_voicePressed(voiceNr);
+		return;
+	}
+#endif
 
 	//if in step mode, return to voice/edit mode
 #if !EURORACK_MODULE
@@ -1864,6 +1893,13 @@ void buttonHandler_buttonPressed(uint8_t buttonNr) {
 
 	case BUT_1:
 
+		//kit randomizer: DRUM = new kit / lock modifier
+		if(buttonHandler_stateMemory.selectButtonMode == SELECT_MODE_RND)
+		{
+			RndUi_drumPressed();
+			break;
+		}
+
 		//if in performance mode -> show muted voices
 		if(buttonHandler_stateMemory.selectButtonMode == SELECT_MODE_PERF)
 		{
@@ -1930,7 +1966,10 @@ void buttonHandler_buttonPressed(uint8_t buttonNr) {
 
 	case BUT_PERF :
 
-		buttonHandler_handleModeButtons((uint8_t) (buttonNr - BUT_EDIT));
+		if(buttonHandler_getShiftButton())
+			buttonHandler_handleModeButtons(SELECT_MODE_RND);	//SHIFT+PERF = kit randomizer
+		else
+			buttonHandler_handleModeButtons((uint8_t) (buttonNr - BUT_EDIT));
 
 
 		/*
@@ -2372,6 +2411,11 @@ void buttonHandler_buttonReleased(uint8_t buttonNr)
 
 
 	case BUT_1:
+		if((buttonNr == BUT_1) && (buttonHandler_getMode() == SELECT_MODE_RND))
+		{
+			RndUi_drumReleased();	//DRUM tap = new kit
+			break;
+		}
 		led_setValue(0, LED_1);
 		//if in performance mode -> show muted voices
 		if(buttonHandler_getMode() == SELECT_MODE_PERF)

@@ -440,6 +440,13 @@ enum ParamEnums
 	PAR_STEP_FLAM,
 	PAR_STEP_SHIFT,
 
+	// kit randomizer (SHIFT+PERF page), menu only, not saved
+	PAR_RND_TYPE,					// CLS / EXP
+	PAR_RND_KEY,					// 0 = off, 1..12 = C..B
+	PAR_RND_MOD,					// LFO routing on/off
+	PAR_RND_VAR,					// spread 0..127
+	PAR_RND_HZ,						// spectral slotting off / soft / hard
+
 	
 	//#########################################
 	//######## Global Parameters ##############

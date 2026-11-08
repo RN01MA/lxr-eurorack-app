@@ -18,6 +18,8 @@
 
 
 #include "Preset/PresetManager.h"
+#include "Preset/Randomizer.h"
+#include "Preset/RandomizerUi.h"
 #include "menu/menuPages.h"
 #include "menu/MenuText.h"
 //#include "../Hardware/timebase.h"
@@ -264,6 +266,12 @@ const Name valueNames[NUM_NAMES] =
 		{SHORT_DB, CAT_FX, LONG_SLOPE_DB},/*TEXT_FX_DJF_SLOPE*/
 		{SHORT_CUT, CAT_FX, LONG_CUTOFF},/*TEXT_FX_DJF_CUT*/
 		{SHORT_FIL_RESO, CAT_FX, LONG_RESONANCE},/*TEXT_FX_DJF_RESO*/
+
+		{SHORT_TYPE, CAT_RND, LONG_TYPE},/*TEXT_RND_TYPE*/
+		{SHORT_COARSE, CAT_RND, LONG_RND_KEY},/*TEXT_RND_KEY*/
+		{SHORT_MOD, CAT_RND, LONG_RND_LFO},/*TEXT_RND_MOD*/
+		{SHORT_VAR, CAT_RND, LONG_RND_VAR},/*TEXT_RND_VAR*/
+		{SHORT_HZ, CAT_RND, LONG_RND_HZ},/*TEXT_RND_HZ*/
 
 
 
@@ -607,6 +615,11 @@ const enum Datatypes PROGMEM parameter_dtypes[NUM_PARAMS] = {
 	    /*PAR_TRACK_ROTATION*/  DTYPE_1B16,  //**PATROT this is not shown in menu, but if it were it would really be 0 to 15
 		/*PAR_STEP_FLAM*/ 		DTYPE_MENU | (MENU_STEP_FLAM<<8),							//251
 		/*PAR_STEP_SHIFT*/		DTYPE_MENU | (MENU_STEP_SHIFT<<8),
+		/*PAR_RND_TYPE*/		DTYPE_MENU | (MENU_RND_TYPE<<8),
+		/*PAR_RND_KEY*/			DTYPE_MENU | (MENU_RND_KEY<<8),
+		/*PAR_RND_MOD*/			DTYPE_ON_OFF,
+		/*PAR_RND_VAR*/			DTYPE_0B127,
+		/*PAR_RND_HZ*/			DTYPE_MENU | (MENU_RND_HZ<<8),
 	    /*PAR_BPM*/ 			DTYPE_0B255,							//251
 	    /*PAR_MIDI_CHAN_1*/ 	DTYPE_1B16,
 	    /*PAR_MIDI_CHAN_2*/ 	DTYPE_1B16,
@@ -832,6 +845,13 @@ void menu_init()
 	//frontPanel_sendData(SEQ_CC,SEQ_ROLL_RATE,8); //value is initialized in cortex firmware
 
 	activeParameters[PAR_BPM] = 120;
+
+	// kit randomizer defaults: CLS, key off, MOD off, VAR ~55 %, Hz soft
+	activeParameters[PAR_RND_TYPE] = RND_TYPE_CLS;
+	activeParameters[PAR_RND_KEY]  = 0;
+	activeParameters[PAR_RND_MOD]  = 0;
+	activeParameters[PAR_RND_VAR]  = RND_VAR_DEFAULT;
+	activeParameters[PAR_RND_HZ]   = RND_HZ_SOFT;
 
 
 	// todo I tried to move everything below here to main.c before the call
@@ -1985,6 +2005,10 @@ void menu_repaint()
 	{
 		menu_repaintSimplePage();
 	}
+	else if((menu_activePage == RND_PAGE) && RndUi_paint(editDisplayBuffer))
+	{
+		// kit randomizer overlay: lock view while DRUM is held, result after a new kit
+	}
 	else if(buttonHandler_getDrumButton())
 	{
 		strcpy(&editDisplayBuffer[0][0], "Selected Drum ");
@@ -2881,6 +2905,15 @@ static uint8_t getMaxEntriesForMenu(uint8_t menuId)
 	case MENU_DJF_SLOPE:
 		return djfSlopeNames[0][0];
 
+	case MENU_RND_TYPE:
+		return rndTypeNames[0][0];
+
+	case MENU_RND_KEY:
+		return rndKeyNames[0][0];
+
+	case MENU_RND_HZ:
+		return rndHzNames[0][0];
+
 	default:
 		return 0;
 	}
@@ -3003,6 +3036,18 @@ static void getMenuItemNameForValue(const uint8_t menuId, const uint8_t curParmV
 
 	case MENU_DJF_SLOPE:
 		p = (curParmVal < djfSlopeNames[0][0]) ? djfSlopeNames[curParmVal+1] : menuText_dash;
+		break;
+
+	case MENU_RND_TYPE:
+		p = (curParmVal < rndTypeNames[0][0]) ? rndTypeNames[curParmVal+1] : menuText_dash;
+		break;
+
+	case MENU_RND_KEY:
+		p = (curParmVal < rndKeyNames[0][0]) ? rndKeyNames[curParmVal+1] : menuText_dash;
+		break;
+
+	case MENU_RND_HZ:
+		p = (curParmVal < rndHzNames[0][0]) ? rndHzNames[curParmVal+1] : menuText_dash;
 		break;
 
 
@@ -3611,6 +3656,21 @@ void menu_switchSubPage(uint8_t subPageNr, uint8_t toggle)
 	menuIndex = (uint8_t)( (activePage << PAGE_SHIFT) | activeParameter);
 }
 
+//-----------------------------------------------------------------
+void menu_enterRandomizerPage(uint8_t toggle)
+{
+	if(toggle && (menu_activePage == RND_PAGE))
+	{
+		menu_switchSubPage(0, 1);		// TYP/COA/MOD/VAR <-> Hz
+	}
+	else
+	{
+		menu_activePage = RND_PAGE;
+		editModeActive = 0;
+		menuIndex = 0;					// sub page 0, first parameter
+	}
+	menu_repaintAll();
+}
 //-----------------------------------------------------------------
 void menu_resetActiveParameter()
 {

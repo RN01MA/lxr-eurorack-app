@@ -21,6 +21,7 @@
 #include "Preset/PresetManager.h"
 #include "Soundengine/Soundengine.h"
 #include "Soundengine/DSPAudio/random.h"
+#include "Preset/RandomizerUi.h"
 #include <Soundengine/ModMatrix_Processor.h>
 #include "Soundengine/MIDI/Uart.h"
 
@@ -482,6 +483,7 @@ voiceControl_start();
 	  soundengine_process();
 	//  menu_tick();
 	  led_tickHandler();
+	  RndUi_tick();
 	  soundengine_process();
 	//  menu_tick();
 	  adc_checkPots();

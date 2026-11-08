@@ -97,6 +97,7 @@ enum PageNames
 	PATTERN_SETTINGS_PAGE,
 	RECORDING_PAGE,
 	FX_MODE_PAGE,
+	RND_PAGE,		// kit randomizer (SHIFT+PERF)
 
 
 
@@ -284,6 +285,13 @@ enum NamesEnum
 	TEXT_FX_DJF_CUT,
 	TEXT_FX_DJF_RESO,
 
+	// kit randomizer page (appended)
+	TEXT_RND_TYPE,
+	TEXT_RND_KEY,
+	TEXT_RND_MOD,
+	TEXT_RND_VAR,
+	TEXT_RND_HZ,
+
 
 	NUM_NAMES
 };
@@ -400,6 +408,8 @@ enum shortNamesEnum
 	SHORT_DJF,
 	SHORT_DB,
 	SHORT_CUT,
+	SHORT_VAR,
+	SHORT_HZ,
 
 	
 };
@@ -436,7 +446,8 @@ enum catNamesEnum
 	CAT_MIDI,
 	CAT_CLOCK,
 	CAT_FX,
-	CAT_MOD
+	CAT_MOD,
+	CAT_RND
 };
 //-----------------------------------------------------------------
 // these must correspond with longNames in MenuText.h
@@ -536,7 +547,11 @@ enum longNamesEnum
 	LONG_MORPH_TARGET,
 	LONG_DJ_FILTER,
 	LONG_SLOPE_DB,
-	LONG_CUTOFF
+	LONG_CUTOFF,
+	LONG_RND_KEY,
+	LONG_RND_LFO,
+	LONG_RND_VAR,
+	LONG_RND_HZ
 	
 };
 
@@ -699,6 +714,8 @@ void menu_parseEncoder(int8_t inc, uint8_t button);
 void menu_switchPage(uint8_t pageNr);
 //-----------------------------------------------------------------
 void menu_switchSubPage(uint8_t subPageNr, uint8_t toggle);
+// kit randomizer page: enter on its first screen, or flip screens when already shown
+void menu_enterRandomizerPage(uint8_t toggle);
 //-----------------------------------------------------------------
 void menu_resetActiveParameter();
 //-----------------------------------------------------------------
