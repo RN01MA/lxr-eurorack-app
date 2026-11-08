@@ -28,8 +28,8 @@ cmake --preset release
 cmake --build --preset release
 ```
 
-The update file is written to `build/release/LXRE_MX_V<version>.img`. The version is set by
-`project(VERSION ...)` in [CMakeLists.txt](CMakeLists.txt) and shown on the start-up screen.
+The update file is written to `build/release/LXRE_MX_v<version>.img`. The version is set by
+`MX_VERSION` in [CMakeLists.txt](CMakeLists.txt) and shown on the start-up screen.
 
 | Option | Effect |
 |---|---|
@@ -42,7 +42,7 @@ To start from scratch (e.g. after switching compilers), delete the `build/` fold
 
 ## Installing the update
 
-1. Copy `LXRE_MX_V<version>.img` to the top folder of a FAT32 SD card and delete any older `LXRE*.img`
+1. Copy `LXRE_MX_v<version>.img` to the top folder of a FAT32 SD card and delete any older `LXRE*.img`
    files from it.
 2. With the module powered off, insert the card, hold down the encoder button and power on. Keep
    holding until "LXR Updater" appears.
@@ -63,7 +63,7 @@ cmake --build --preset release --target flash        # firmware only, bootloader
 For blank devices, configure with the Eurorack bootloader, either from source
 (`-DLXR_BOOTLOADER_DIR=path/to/LXR_V2_STM32F765_Bootloader`, built with `LXR_BOOTLOADER_EURORACK`) or
 prebuilt (`-DLXR_BOOTLOADER_HEX=path/to/LXR_V2_Eurorack_Bootloader.hex`). The build then also writes
-`LXRE_MX_V<version>_full.hex/.bin` (whole flash from 0x08000000) and enables the `flash_full` target.
+`LXRE_MX_v<version>_full.hex/.bin` (whole flash from 0x08000000) and enables the `flash_full` target.
 
 > **Warning:** `flash_full` overwrites the bootloader and asks you to type `yes` first (or set
 > `LXR_CONFIRM_BOOTLOADER_OVERWRITE=yes`). If it is interrupted, the module can only be recovered with a

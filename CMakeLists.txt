@@ -25,6 +25,10 @@ project(LXR_V2_STM32F765_Eurorack
     LANGUAGES C ASM
 )
 
+# LXRE_MX: own version number (based on the original firmware V${PROJECT_VERSION}).
+# Shown on the boot screen and used in the update file name.
+set(MX_VERSION 1.0)
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)
 endif()
@@ -82,7 +86,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 # Linked at 0x08008000, behind the 32 KB bootloader.
 lxr_firmware_executable(${PROJECT_NAME} LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/STM32F765VGTX_FLASH.ld)
-lxr_add_firmware_outputs(${PROJECT_NAME} IMAGE_MAGIC LXRERIMG IMAGE_NAME LXRE_MX_V${PROJECT_VERSION})
+lxr_add_firmware_outputs(${PROJECT_NAME} IMAGE_MAGIC LXRERIMG IMAGE_NAME LXRE_MX_v${MX_VERSION})
 
 # "flash": application only, the bootloader on the device is left alone.
 lxr_add_openocd_flash_target(flash
@@ -148,9 +152,9 @@ if(NOT bootloader)
 endif()
 
 if(bootloader)
-    # LXRE_MX_V<version>_full.hex/.bin: bootloader at 0x08000000 + firmware at 0x08008000.
+    # LXRE_MX_v<version>_full.hex/.bin: bootloader at 0x08000000 + firmware at 0x08008000.
     lxr_add_combined_image(full_image
-        OUTPUT_NAME LXRE_MX_V${PROJECT_VERSION}_full
+        OUTPUT_NAME LXRE_MX_v${MX_VERSION}_full
         BOOTLOADER ${bootloader}
         APPLICATION ${PROJECT_NAME}
         BOOTLOADER_MAGIC LXRERIMG
@@ -181,7 +185,7 @@ if(TARGET full_image)
     list(APPEND info_depends full_image)  # print after everything else is done
 endif()
 lxr_add_update_info(update_info
-    IMAGE ${CMAKE_CURRENT_BINARY_DIR}/LXRE_MX_V${PROJECT_VERSION}.img
+    IMAGE ${CMAKE_CURRENT_BINARY_DIR}/LXRE_MX_v${MX_VERSION}.img
     IMAGE_PATTERN LXRE*.img
     DEVICE "module"
     DEPENDS ${info_depends}

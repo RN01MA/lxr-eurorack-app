@@ -27,9 +27,9 @@ add_library(lxr_platform OBJECT
     Src/sysmem.c
     Src/delay.c
 )
-# Shown on the boot splash screen; comes from project(VERSION) in the top-level CMakeLists.txt.
+# Shown on the boot splash screen; MX_VERSION from the top-level CMakeLists.txt.
 set_source_files_properties(Src/main.c PROPERTIES
-    COMPILE_DEFINITIONS "FIRMWARE_VERSION=\"${PROJECT_VERSION}\""
+    COMPILE_DEFINITIONS "FIRMWARE_VERSION=\"${MX_VERSION}\""
 )
 
 # Hardware inputs/outputs: shift-register buttons/LEDs, pots and CV inputs.
