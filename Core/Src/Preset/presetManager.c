@@ -35,6 +35,7 @@
 static void preset_djfCentreCut(void);
 static inline uint8_t preset_isDjfCut(uint16_t index);
 static inline uint8_t preset_isFxBusSwitch(uint16_t index);
+static uint8_t preset_morphBlend(uint16_t index, uint8_t morph);
 
 FRESULT preset_savePatternSD(uint8_t presetNr);
 //FRESULT preset_loadPatternSD(uint8_t presetNr);
@@ -2012,23 +2013,13 @@ void preset_morph_tick()
 
 		uint8_t morph;
 
-		//Do not morph audio routing (nor the FX bus switches and the DJ filter CUT knob)
-		if(((morph_index >= PAR_AUDIO_OUT1) && (morph_index <= PAR_AUDIO_OUT6)) || preset_isFxBusSwitch(morph_index) || preset_isDjfCut(morph_index)) //morph_index++;
-		{
-			//always use source kit (morph = 0) for audio routing
-			morph = 0;
-		}
-		else
-		{
-			//morph = activeParameters[PAR_MORPH];
-			morph = preset_morphValue;
-		}
+		//morph = activeParameters[PAR_MORPH];
+		morph = preset_morphValue;
 
 		static MidiMsg msg = {0,0,0, {0,0,0}};
 
-
-		//const uint8_t val = interpolate(activeParameters[morph_index],morphParameters[morph_index],morph);
-		const uint8_t val = interpolate(activeParameters[morph_index],mainParameters[activeParameters[PAR_MORPH_TARGET]][morph_index],morph);
+		// routing / FX bus switches / DJ filter CUT stay, other switches snap, the rest interpolates
+		const uint8_t val = preset_morphBlend(morph_index, morph);
 
 
 		if(morph_index < 128)
@@ -2135,9 +2126,44 @@ void preset_morph(uint8_t morph, uint8_t forceResetIndex)
 //----------------------------------------------------
 uint8_t preset_getMorphValue(uint16_t index, uint8_t morph)
 {
-	if(preset_isFxBusSwitch(index) || preset_isDjfCut(index)) morph = 0;	// FX bus switches and DJ filter CUT are not morphed
-	return interpolate(activeParameters[index],mainParameters[activeParameters[PAR_MORPH_TARGET]][index],morph);
+	return preset_morphBlend(index, morph);
 };
+//----------------------------------------------------
+// Parameters that are a choice, not an amount: waveform, filter type, LFO
+// target, on/off... Interpolated as numbers they step through every value in
+// between (e.g. filter LP->HP via BP), each step a click.
+static uint8_t preset_isDiscrete(uint16_t index)
+{
+	switch(parameter_dtypes[index] & 0xFF)
+	{
+	case DTYPE_MENU:
+	case DTYPE_ON_OFF:
+	case DTYPE_0b1:
+	case DTYPE_TARGET_SELECTION_LFO:
+	case DTYPE_TARGET_SELECTION_VELO:
+	case DTYPE_TARGET_SELECTION_CV:
+	case DTYPE_VOICE_LFO:
+		return 1;
+	default:
+		return 0;
+	}
+}
+//----------------------------------------------------
+// value of a sound parameter at morph position 0..255 (current kit -> target kit)
+//  - voice audio routing, FX bus switches, DJ filter CUT: stay as in the current kit
+//  - other switches: one clean change half way instead of stepping through values
+//  - everything else: interpolated as before
+static uint8_t preset_morphBlend(uint16_t index, uint8_t morph)
+{
+	const uint8_t a = activeParameters[index];
+	const uint8_t b = mainParameters[activeParameters[PAR_MORPH_TARGET]][index];
+
+	if(((index >= PAR_AUDIO_OUT1) && (index <= PAR_AUDIO_OUT6)) || preset_isFxBusSwitch(index) || preset_isDjfCut(index))
+		return a;
+	if(preset_isDiscrete(index))
+		return (morph < 128) ? a : b;
+	return interpolate(a, b, morph);
+}
 //----------------------------------------------------
 #if !EURORACK_MODULE
 FRESULT preset_createProject(uint8_t presetNr)
