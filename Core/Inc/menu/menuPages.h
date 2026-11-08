@@ -639,11 +639,11 @@ const Page menuPages[NUM_PAGES][NUM_SUB_PAGES] =
 
 	},
 	//------------------ KIT RANDOMIZER PAGE (SHIFT+PERF) ---------------------
-	// screen 1: type, key, LFO routing, variation   screen 2: spectral slotting
+	// one screen: type, key, LFO routing, spectral slotting
 	{
 		{
-			TEXT_RND_TYPE,	TEXT_RND_KEY,	TEXT_RND_MOD,	TEXT_RND_VAR,	TEXT_RND_HZ,	TEXT_EMPTY,	TEXT_EMPTY,	TEXT_EMPTY,
-			PAR_RND_TYPE,	PAR_RND_KEY,	PAR_RND_MOD,	PAR_RND_VAR,	PAR_RND_HZ,	PAR_NONE,	PAR_NONE,	PAR_NONE
+			TEXT_RND_TYPE,	TEXT_RND_KEY,	TEXT_RND_MOD,	TEXT_RND_HZ,	TEXT_EMPTY,	TEXT_EMPTY,	TEXT_EMPTY,	TEXT_EMPTY,
+			PAR_RND_TYPE,	PAR_RND_KEY,	PAR_RND_MOD,	PAR_RND_HZ,	PAR_NONE,	PAR_NONE,	PAR_NONE,	PAR_NONE
 		}
 	},
 		

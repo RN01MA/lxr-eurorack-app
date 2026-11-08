@@ -581,7 +581,6 @@ const char shortNames[][4]  =
 	{"djf"},
 	{"db"},
 	{"cut"},
-	{"var"},
 	{"hz"},
 
 };
@@ -724,7 +723,6 @@ const char longNames[][16] =
 	{"Cutoff"},
 	{"Key"},
 	{"LFO Rout"},
-	{"Variatn"},
 	{"Spectrum"},
 };
 

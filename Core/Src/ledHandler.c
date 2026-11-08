@@ -18,6 +18,7 @@
 #include "menu/menu.h"
 #include "main.h"
 #include "Soundengine/globals.h"
+#include "Preset/RandomizerUi.h"
 //#include "Soundengine/Sequencer/sequencer.h"
 
 //since we need an array to store the start time we have to limit the number of simultanousely pulsable LEDs
@@ -667,6 +668,8 @@ void led_setMode2(uint8_t status)
 			default:
 			break;
 		}
+		//kit randomizer switched on: PERF keeps blinking in every mode
+		if(RndUi_isLatched()) led_setBlinkLed(LED_PERF,1);
 
 #else
 	led_setValue(0,LED_MODE1);

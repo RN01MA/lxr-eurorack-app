@@ -1,12 +1,15 @@
 /*
  * RandomizerUi.h
  *
- * Front panel side of the kit randomizer (SHIFT+PERF):
- *   DRUM                -> new kit right on the press
+ * Front panel side of the kit randomizer:
+ *   SHIFT+PERF          -> randomizer on / off (off -> plain PERF)
+ *   while on            -> PERF blinks in every mode; EDIT/MOD/FX/SAVE work,
+ *                          PERF brings back the randomizer page
+ *   PERF held           -> recipe per voice on the display
+ *   DRUM (on its page)  -> new kit right on the press
  *   hold voice(s) + DRUM-> the held voices are left as they are
  *   voice buttons       -> trigger the voice (audition, like PERF)
- *   voice LEDs          -> V1->V6 bar after a new kit (kept voices skipped)
- *   display             -> recipe per voice for 2.5 s, kept voices "---"
+ *   voice LEDs          -> bar over the 7 voice buttons after a new kit
  *
  * Copyright (C) 2012-2026 Erica Synths
  * SPDX-License-Identifier: GPL-3.0-only
@@ -21,8 +24,12 @@
 
 #include <stdint.h>
 
-void RndUi_enter();							// mode entered (SHIFT+PERF)
-void RndUi_leave();							// another mode selected
+void RndUi_setLatched(uint8_t on);			// SHIFT+PERF
+uint8_t RndUi_isLatched();
+void RndUi_enter();							// randomizer page shown
+void RndUi_leave();							// another page / mode selected
+void RndUi_perfPressed();
+void RndUi_perfReleased();
 
 void RndUi_drumPressed();
 void RndUi_drumReleased();

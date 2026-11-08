@@ -270,7 +270,6 @@ const Name valueNames[NUM_NAMES] =
 		{SHORT_TYPE, CAT_RND, LONG_TYPE},/*TEXT_RND_TYPE*/
 		{SHORT_COARSE, CAT_RND, LONG_RND_KEY},/*TEXT_RND_KEY*/
 		{SHORT_MOD, CAT_RND, LONG_RND_LFO},/*TEXT_RND_MOD*/
-		{SHORT_VAR, CAT_RND, LONG_RND_VAR},/*TEXT_RND_VAR*/
 		{SHORT_HZ, CAT_RND, LONG_RND_HZ},/*TEXT_RND_HZ*/
 
 
@@ -618,7 +617,6 @@ const enum Datatypes PROGMEM parameter_dtypes[NUM_PARAMS] = {
 		/*PAR_RND_TYPE*/		DTYPE_MENU | (MENU_RND_TYPE<<8),
 		/*PAR_RND_KEY*/			DTYPE_MENU | (MENU_RND_KEY<<8),
 		/*PAR_RND_MOD*/			DTYPE_ON_OFF,
-		/*PAR_RND_VAR*/			DTYPE_0B127,
 		/*PAR_RND_HZ*/			DTYPE_MENU | (MENU_RND_HZ<<8),
 	    /*PAR_BPM*/ 			DTYPE_0B255,							//251
 	    /*PAR_MIDI_CHAN_1*/ 	DTYPE_1B16,
@@ -846,11 +844,10 @@ void menu_init()
 
 	activeParameters[PAR_BPM] = 120;
 
-	// kit randomizer defaults: CLS, key off, MOD off, VAR ~55 %, Hz soft
+	// kit randomizer defaults: CLS, key off, MOD off, Hz soft
 	activeParameters[PAR_RND_TYPE] = RND_TYPE_CLS;
 	activeParameters[PAR_RND_KEY]  = 0;
 	activeParameters[PAR_RND_MOD]  = 0;
-	activeParameters[PAR_RND_VAR]  = RND_VAR_DEFAULT;
 	activeParameters[PAR_RND_HZ]   = RND_HZ_SOFT;
 
 
@@ -3657,13 +3654,9 @@ void menu_switchSubPage(uint8_t subPageNr, uint8_t toggle)
 }
 
 //-----------------------------------------------------------------
-void menu_enterRandomizerPage(uint8_t toggle)
+void menu_enterRandomizerPage()
 {
-	if(toggle && (menu_activePage == RND_PAGE))
-	{
-		menu_switchSubPage(0, 1);		// TYP/COA/MOD/VAR <-> Hz
-	}
-	else
+	if(menu_activePage != RND_PAGE)
 	{
 		menu_activePage = RND_PAGE;
 		editModeActive = 0;

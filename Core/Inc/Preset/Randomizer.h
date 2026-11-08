@@ -34,14 +34,12 @@
 // COA
 #define RND_KEY_OFF			(-1)	// 0..11 = C..B
 
-#define RND_VAR_DEFAULT		70		// ~ the 55 % of the desktop tool
-
 typedef struct RandomizerConfigStruct
 {
 	uint8_t type;		// RND_TYPE_CLS / RND_TYPE_EXP
 	int8_t  key;		// RND_KEY_OFF or 0..11 (C..B)
-	uint8_t mod;		// 1 = write LFO routes (free / LFO slots only), 0 = matrix untouched
-	uint8_t var;		// 0..127 spread
+	uint8_t mod;		// 1 = one LFO route per voice (free / LFO slots only), 0 = LFO routes
+						// of the regenerated voices removed; cv1..cv5 / accent never touched
 	uint8_t hz;			// RND_HZ_OFF / SOFT / HARD
 	uint8_t lockMask;	// bit n set = voice n+1 locked (left untouched)
 } RandomizerConfig;
@@ -52,7 +50,7 @@ enum RndArchIds
 	RND_A_KICK, RND_A_BASS, RND_A_FM, RND_A_TOM, RND_A_CONGA, RND_A_RIM,
 	RND_A_PERC, RND_A_BELL, RND_A_STAB, RND_A_SNARE, RND_A_CLAP, RND_A_SHAKER,
 	RND_A_HIHAT, RND_A_CYMBAL, RND_A_RIDE, RND_A_NOISE,
-	RND_A_REESE, RND_A_FOLD, RND_A_WT, RND_A_ACID,
+	RND_A_REESE, RND_A_FOLD, RND_A_WT, RND_A_ACID, RND_A_GHOST,
 	RND_A_COUNT,
 	RND_A_LOCKED = 0xff
 };

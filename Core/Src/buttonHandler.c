@@ -494,10 +494,10 @@ static void buttonHandler_handleModeButtons(uint8_t mode) {
 			menu_switchPage(MENU_MIDI_PAGE);
 			break;
 
-		//kit randomizer: PERF LED blinks, again SHIFT+PERF flips the two screens
+		//kit randomizer page (the mode is switched on/off with SHIFT+PERF)
 		case SELECT_MODE_RND:
 			led_setMode2(SELECT_MODE_RND);
-			menu_enterRandomizerPage(toggle);
+			menu_enterRandomizerPage();
 			RndUi_enter();
 			break;
 	}
@@ -1967,7 +1967,26 @@ void buttonHandler_buttonPressed(uint8_t buttonNr) {
 	case BUT_PERF :
 
 		if(buttonHandler_getShiftButton())
-			buttonHandler_handleModeButtons(SELECT_MODE_RND);	//SHIFT+PERF = kit randomizer
+		{
+			//SHIFT+PERF: kit randomizer on / off (off -> plain PERF)
+			if(RndUi_isLatched())
+			{
+				RndUi_setLatched(0);
+				buttonHandler_handleModeButtons(SELECT_MODE_PERF);
+			}
+			else
+			{
+				RndUi_setLatched(1);
+				buttonHandler_handleModeButtons(SELECT_MODE_RND);
+			}
+		}
+		else if(RndUi_isLatched())
+		{
+			//randomizer on: PERF (blinking) = back to its page, held = recipe per voice
+			if(buttonHandler_stateMemory.selectButtonMode != SELECT_MODE_RND)
+				buttonHandler_handleModeButtons(SELECT_MODE_RND);
+			RndUi_perfPressed();
+		}
 		else
 			buttonHandler_handleModeButtons((uint8_t) (buttonNr - BUT_EDIT));
 
@@ -2459,6 +2478,7 @@ void buttonHandler_buttonReleased(uint8_t buttonNr)
 		break;
 
 	case BUT_PERF :
+		if(RndUi_isLatched()) RndUi_perfReleased();	//recipe view off
 		/*
 		// DRUM SELECT MODE HANDLER
 		led_setValue(0, LED_PERF);

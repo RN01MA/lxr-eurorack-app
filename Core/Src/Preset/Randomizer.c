@@ -28,6 +28,7 @@
 
 #include "Preset/Randomizer.h"
 #include "Parameters.h"
+#include "Preset/RandomizerLoudness.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -94,6 +95,13 @@ static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x;
 #define CV_SRC_LFO1		5		// lf1..lf6 = 5..10, cv1..cv5 = 0..4, ac1..ac6 = 11..16
 #define CV_SLOTS_PER_VOICE 3	// voice n owns CV slots 3(n-1) .. 3(n-1)+2 (its MOD page)
 #define CV_AMT_MAX		100		// DTYPE_0B100
+
+// spread (fraction of each recipe range used). CLS = the desktop tool default,
+// EXP wider; EXP also widens the ranges themselves (x1.5) and picks the synth
+// recipes more often
+#define RND_SPREAD_CLS	0.55f
+#define RND_TOO_QUIET_DB	4.0f	// re-roll a voice predicted > 4 dB under its target at VOL 127
+#define RND_SPREAD_EXP	0.75f
 
 //---- voice roles ----------------------------------------------------------
 enum RndRoles
@@ -221,6 +229,7 @@ typedef struct { uint8_t c1; uint8_t r; } RndRange;	// c1 = centre+1, 0 = role n
 #define F_NOFLIP	0x10	// mix/FM mode is part of the sound, never flipped
 #define F_FIXWAVE	0x20	// no exotic osc wave substitution in EXP
 #define F_FMHARM	0x40	// with COA: FM modulator snapped to a harmonic interval
+#define F_KEYTRACK	0x80	// band-pass follows the note (else a fixed BP can miss every harmonic = silence)
 
 // LFO profiles (MOD on)
 #define LP_NONE		0
@@ -262,7 +271,7 @@ static const RndArch arch[RND_A_COUNT] =
 
 	[RND_A_TOM] = { .name="TOM", .wave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP)},
 		.flags=F_TONAL, .bandLo=50, .bandHi=63,
-		.lfoProf={LP_DRIFT,LP_GROOVE}, .lfoTgt={R_FILTFREQ,R_FILTFREQ},
+		.lfoProf={LP_DRIFT,LP_SH}, .lfoTgt={R_FILTFREQ,R_MODEG},
 		.r={ [R_COARSE]=RG(52,16), [R_AEGA]=RG(0,3), [R_AEGD]=RG(28,8), [R_VOLSLOPE]=RG(16,10),
 			 [R_MODAMT]=RG(55,28), [R_PITCHSLOPE]=RG(20,14), [R_MODEG]=RG(26,18),
 			 [R_FILTFREQ]=RG(110,16), [R_RESO]=RG(12,18), [R_TRANSVOL]=RG(26,25),
@@ -277,15 +286,16 @@ static const RndArch arch[RND_A_COUNT] =
 			 [R_VOL]=RG(112,10), [R_DECIM]=RG(127,0) } },
 
 	[RND_A_PERC] = { .name="PRC", .wave={C1(W_REC)}, .modWave={C1(W_REC)}, .filt={C1(FT_BP)}, .mixMod=MM_MIX,
-		.flags=F_TONAL, .bandLo=75, .bandHi=84,
-		.lfoProf={LP_DRIFT,LP_SH}, .lfoTgt={R_FILTFREQ,R_FMFREQ},
-		.r={ [R_COARSE]=RG(71,12), [R_AEGA]=RG(0,3), [R_AEGD]=RG(18,8), [R_VOLSLOPE]=RG(5,5),
+		.flags=F_TONAL|F_KEYTRACK, .bandLo=75, .bandHi=84,
+		.lfoProf={LP_DRIFT,LP_SH}, .lfoTgt={R_FILTFREQ,R_FMFREQ},	// S&H modulator: other metal per hit
+		// decay and drive up from the tool (18 / 42): the keytracked BP perc was thin
+		.r={ [R_COARSE]=RG(71,12), [R_AEGA]=RG(0,3), [R_AEGD]=RG(22,8), [R_VOLSLOPE]=RG(5,5),
 			 [R_MODAMT]=RG(12,16), [R_FMAMT]=RG(80,22), [R_FMFREQ]=RG(86,26),
-			 [R_FILTFREQ]=RG(88,18), [R_RESO]=RG(72,20), [R_TRANSVOL]=RG(12,16), [R_DRIVE]=RG(42,30),
+			 [R_FILTFREQ]=RG(88,18), [R_RESO]=RG(72,20), [R_TRANSVOL]=RG(12,16), [R_DRIVE]=RG(58,26),
 			 [R_VOL]=RG(98,14), [R_DECIM]=RG(120,8) } },
 
 	[RND_A_BELL] = { .name="BEL", .wave={C1(W_REC)}, .modWave={C1(W_SAW),C1(W_REC),C1(W_NOI)}, .filt={C1(FT_BP)}, .mixMod=MM_FM,
-		.flags=F_TONAL, .bandLo=69, .bandHi=84,
+		.flags=F_TONAL|F_KEYTRACK, .bandLo=69, .bandHi=84,
 		.lfoProf={LP_DRIFT,LP_DRIFT}, .lfoTgt={R_FILTFREQ,R_FMAMT},
 		.r={ [R_COARSE]=RG(70,20), [R_AEGA]=RG(0,3), [R_AEGD]=RG(40,14), [R_VOLSLOPE]=RG(8,6),
 			 [R_FMAMT]=RG(104,20), [R_FMFREQ]=RG(94,34),
@@ -295,7 +305,7 @@ static const RndArch arch[RND_A_COUNT] =
 
 	[RND_A_SNARE] = { .name="SNR", .wave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_HP),C1(FT_BP)},
 		.flags=F_TONAL,
-		.lfoProf={LP_DRIFT,LP_GROOVE}, .lfoTgt={R_FILTFREQ,R_FILTFREQ},
+		.lfoProf={LP_DRIFT,LP_GROOVE}, .lfoTgt={R_FILTFREQ,R_NOISEMIX},
 		.r={ [R_COARSE]=RG(56,18), [R_AEGA]=RG(0,3), [R_AEGD]=RG(12,4), [R_VOLSLOPE]=RG(34,10),
 			 [R_MODAMT]=RG(40,26), [R_NOISEMIX]=RG(74,18),
 			 [R_FILTFREQ]=RG(72,24), [R_RESO]=RG(42,24), [R_TRANSVOL]=RG(20,22),
@@ -326,7 +336,7 @@ static const RndArch arch[RND_A_COUNT] =
 
 	[RND_A_CONGA] = { .name="CON", .wave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP)},
 		.flags=F_TONAL, .bandLo=55, .bandHi=67,
-		.lfoProf={LP_DRIFT,LP_SH}, .lfoTgt={R_FILTFREQ,R_FILTFREQ},
+		.lfoProf={LP_DRIFT,LP_SH}, .lfoTgt={R_FILTFREQ,R_MODEG},
 		.r={ [R_COARSE]=RG(66,16), [R_AEGA]=RG(0,3), [R_AEGD]=RG(24,8), [R_VOLSLOPE]=RG(14,10),
 			 [R_MODAMT]=RG(45,22), [R_PITCHSLOPE]=RG(18,12), [R_MODEG]=RG(22,14),
 			 [R_FILTFREQ]=RG(106,18), [R_RESO]=RG(16,16), [R_TRANSVOL]=RG(18,20),
@@ -342,7 +352,7 @@ static const RndArch arch[RND_A_COUNT] =
 
 	[RND_A_SHAKER] = { .name="SHK", .wave={C1(W_NOI)}, .filt={C1(FT_HP)},
 		.hpSoft=6, .hpHardHz=3000,
-		.lfoProf={LP_DRIFT,LP_GROOVE}, .lfoTgt={R_FILTFREQ,R_FILTFREQ},
+		.lfoProf={LP_DRIFT,LP_GROOVE}, .lfoTgt={R_FILTFREQ,R_AEGD},
 		.r={ [R_COARSE]=RG(110,16), [R_AEGA]=RG(0,4), [R_AEGD]=RG(10,8), [R_VOLSLOPE]=RG(8,6),
 			 [R_FILTFREQ]=RG(116,10), [R_RESO]=RG(26,22), [R_TRANSVOL]=RG(8,14),
 			 [R_VOL]=RG(90,16), [R_DECIM]=RG(120,8) } },
@@ -410,7 +420,7 @@ static const RndArch arch[RND_A_COUNT] =
 	[RND_A_WT] = { .name="WT ", .wave={C1(W_SAW),C1(W_REC),C1(W_PWM),C1(W_TRI)}, .modWave={C1(W_SIN),C1(W_TRI),C1(W_REC)},
 		.filt={C1(FT_LP),C1(FT_LP),C1(FT_BP)}, .mixMod=MM_MIX,
 		.fmInt={IV(12),IV(12),IV(7),IV(19)}, .trans=TR(1)|TR(2)|TR(4),
-		.flags=F_TONAL|F_BASSREG|F_NOFLIP, .bandLo=38, .bandHi=50,
+		.flags=F_TONAL|F_BASSREG|F_NOFLIP|F_KEYTRACK, .bandLo=38, .bandHi=50,
 		.lfoProf={LP_DRIFT,LP_DRIFT}, .lfoTgt={R_FMAMT,R_FMAMT},
 		.r={ [R_COARSE]=RG(42,6), [R_AEGA]=RG(0,3), [R_AEGD]=RG(30,12), [R_VOLSLOPE]=RG(18,10),
 			 [R_MODAMT]=RG(4,5), [R_PITCHSLOPE]=RG(18,10), [R_MODEG]=RG(24,14),
@@ -428,6 +438,17 @@ static const RndArch arch[RND_A_COUNT] =
 			 [R_MODAMT]=RG(6,6), [R_PITCHSLOPE]=RG(16,10), [R_MODEG]=RG(18,10),
 			 [R_FMAMT]=RG(0,6), [R_FILTFREQ]=RG(50,14), [R_RESO]=RG(96,16), [R_FILTDRIVE]=RG(56,28),
 			 [R_DRIVE]=RG(48,26), [R_TRANSVOL]=RG(6,8), [R_VOL]=RG(104,12), [R_DECIM]=RG(127,0) } },
+
+	// Ghost kick (EXP, V2/V3): small, short, a little higher than the kick -
+	// syncopated off-beat kicks / fills under the main kick
+	[RND_A_GHOST] = { .name="GST", .wave={C1(W_SIN),C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(0)|TR(2)|TR(4)|TR(5)|TR(10),
+		.flags=F_TONAL|F_NOTIGHT|F_NOFLIP|F_FIXWAVE, .bandLo=36, .bandHi=47,
+		.lfoProf={LP_NONE,LP_SH}, .lfoTgt={R_AEGD,R_AEGD},
+		.r={ [R_COARSE]=RG(40,6), [R_AEGA]=RG(0,2), [R_AEGD]=RG(14,6), [R_VOLSLOPE]=RG(22,10),
+			 [R_MODAMT]=RG(60,25), [R_PITCHSLOPE]=RG(22,12), [R_MODEG]=RG(22,14),
+			 [R_FILTFREQ]=RG(100,20), [R_RESO]=RG(10,12), [R_TRANSVOL]=RG(30,30), [R_TRANSFREQ]=RG(60,40),
+			 [R_FMAMT]=RG(0,12), [R_VOL]=RG(80,10), [R_DECIM]=RG(122,6) } },
 };
 
 //---- pools ----------------------------------------------------------------
@@ -449,9 +470,9 @@ static const Pool poolCls[6] =
 static const Pool poolExp[6] =
 {
 	{ 1, { {RND_A_KICK,1,1} } },
-	{ 6, { {RND_A_BASS,4,1}, {RND_A_FM,2,2}, {RND_A_REESE,2,3}, {RND_A_FOLD,1,3}, {RND_A_WT,1,3}, {RND_A_ACID,2,3} } },
-	{ 11,{ {RND_A_FM,3,1}, {RND_A_STAB,3,2}, {RND_A_PERC,2,2}, {RND_A_BELL,1,2}, {RND_A_TOM,2,1}, {RND_A_CONGA,1,1},
-		   {RND_A_RIM,1,1}, {RND_A_FOLD,1,2}, {RND_A_WT,1,2}, {RND_A_ACID,1,2}, {RND_A_REESE,0,1} } },
+	{ 7, { {RND_A_BASS,4,1}, {RND_A_FM,2,2}, {RND_A_REESE,2,3}, {RND_A_FOLD,1,3}, {RND_A_WT,1,3}, {RND_A_ACID,2,3}, {RND_A_GHOST,1,1} } },
+	{ 12,{ {RND_A_FM,3,1}, {RND_A_STAB,3,2}, {RND_A_PERC,2,2}, {RND_A_BELL,1,2}, {RND_A_TOM,2,1}, {RND_A_CONGA,1,1},
+		   {RND_A_RIM,1,1}, {RND_A_FOLD,1,2}, {RND_A_WT,1,2}, {RND_A_ACID,1,2}, {RND_A_REESE,0,1}, {RND_A_GHOST,1,1} } },
 	{ 4, { {RND_A_SNARE,4,2}, {RND_A_CLAP,2,2}, {RND_A_SHAKER,1,1}, {RND_A_NOISE,0,2} } },
 	{ 6, { {RND_A_CLAP,2,1}, {RND_A_CYMBAL,2,2}, {RND_A_RIDE,2,2}, {RND_A_SHAKER,1,1}, {RND_A_BELL,0,2}, {RND_A_NOISE,0,1} } },
 	{ 5, { {RND_A_HIHAT,4,2}, {RND_A_CYMBAL,1,1}, {RND_A_RIDE,1,1}, {RND_A_SHAKER,1,1}, {RND_A_BELL,0,1} } },
@@ -464,7 +485,7 @@ static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid)
 	for(uint8_t i=0;i<pool->n;i++)
 	{
 		const PoolEntry* e = &pool->e[i];
-		w[i] = (float)e->w0 + ((float)e->w1 - (float)e->w0) * amt;
+		w[i] = (float)e->w0 + ((float)e->w1 - (float)e->w0) * amt;	// amt = type spread
 		if(e->a == avoid && pool->n > 1) w[i] = 0;
 		sum += w[i];
 	}
@@ -586,23 +607,86 @@ static int getRole(const uint8_t* p, uint8_t v, uint8_t role)
 	return par != NA ? p[par] : -1;
 }
 
+//---- loudness ---------------------------------------------------------------
+// Mix balance: every voice gets the VOL that puts its predicted loudness on
+// the target of its recipe (K-weighted short-term peak, solo, vel 127, dB).
+// The prediction is the regression of RandomizerLoudness.h, fitted on host
+// renders of this engine; it follows decay, drive, filter, FM, waveform...
+// so a fat reese and a thin perc end up level-matched instead of "VOL 104".
+static const float rndLoudTarget[RND_A_COUNT] =
+{
+	[RND_A_KICK]  =  -8.5f,	// reference: the loudest element
+	[RND_A_BASS]  = -11.0f, [RND_A_REESE] = -11.0f, [RND_A_FOLD] = -11.0f,
+	[RND_A_WT]    = -11.5f, [RND_A_ACID]  = -11.0f, [RND_A_FM]   = -11.5f,
+	[RND_A_GHOST] = -15.0f,	// ghost kick sits under the kick
+	[RND_A_TOM]   = -11.0f, [RND_A_CONGA] = -12.0f, [RND_A_RIM]  = -14.0f,
+	[RND_A_PERC]  = -14.0f, [RND_A_BELL]  = -15.0f, [RND_A_STAB] = -12.5f,
+	[RND_A_SNARE] = -10.0f, [RND_A_CLAP]  = -11.5f, [RND_A_NOISE] = -13.0f,
+	[RND_A_SHAKER]= -15.0f, [RND_A_HIHAT] = -20.0f,
+	[RND_A_CYMBAL]= -17.0f, [RND_A_RIDE]  = -17.0f,
+};
+
+static float clip127(int x) { return (float)(x < 0 ? 0 : x > 127 ? 127 : x); }
+
+// returns the headroom: predicted loudness at VOL 127 minus the target [dB]
+static float setLoudness(uint8_t* p, uint8_t v, uint8_t a)
+{
+	const int8_t m = rndLoudIdx[v][a];
+	if(m < 0) return 0;					// no model: recipe VOL stays
+	const float* w = rndLoudW[(uint8_t)m];
+
+	const float aD  = clip127(getRole(p, v, R_AEGD));
+	const float L1  = logf(20.f + (aD/127.f)*(aD/127.f)*1500.f);
+	const float drv = clip127(getRole(p, v, R_DRIVE));
+	const float ff  = clip127(getRole(p, v, R_FILTFREQ));
+	const float fmA = clip127(getRole(p, v, R_FMAMT));
+	const int   mixR = getRole(p, v, R_MIXMOD);
+	const float mix = mixR > 0 ? 1.f : 0.f;
+	const int   wave = getRole(p, v, R_WAVE);
+	const int   ft   = getRole(p, v, R_FILTTYPE);
+
+	// same features, same order as the fit (fit2.py)
+	const float x[RND_LOUD_NF-1] =
+	{
+		1.f, L1, L1*L1, clip127(getRole(p, v, R_AEGA)), clip127(getRole(p, v, R_VOLSLOPE)),
+		drv, drv*drv/127.f, clip127(getRole(p, v, R_FILTDRIVE)), clip127(getRole(p, v, R_RESO)),
+		ff, ff*ff/127.f, fmA, fmA*mix, mix, clip127(getRole(p, v, R_TRANSVOL)),
+		clip127(getRole(p, v, R_COARSE)), clip127(getRole(p, v, R_DECIM)), clip127(getRole(p, v, R_NOISEMIX)),
+		clip127(getRole(p, v, R_MODAMT)), clip127(getRole(p, v, R_MODEG)),
+		clip127(getRole(p, v, R_MODG1)), clip127(getRole(p, v, R_MODG2)), clip127(getRole(p, v, R_REPEAT)),
+		wave == 0, wave == 1, wave == 2, wave == 3, wave == 4, wave == 5,
+		ft == 0, ft == 1, ft == 2,
+	};
+	float L = 0;
+	for(uint8_t i=0; i<RND_LOUD_NF-1; i++) L += w[i] * x[i];
+
+	float slope = w[RND_LOUD_NF-1];		// dB per dB of VOL (< 1 where VOL feeds a saturator)
+	if(slope < 0.3f) slope = 0.3f;
+	const float lv = (rndLoudTarget[a] - L) / slope;		// 20*log10(vol/127)
+	const int vol = (int)lrintf(127.f * powf(10.f, lv / 20.f));
+	setRole(p, v, R_VOL, clampi(vol, 24, 127));
+	return L - rndLoudTarget[a];
+}
+
 //---- per voice ------------------------------------------------------------
 typedef struct
 {
 	uint8_t type, hz;
 	int8_t key;
-	float amt;			// 0..1 from VAR
+	float amt;			// spread: fixed per type (CLS = desktop tool 55 %)
 } GenCtx;
 
 // floorNote: lowest note allowed (bass above the kick, V3 above the bass), 0 = none
-static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r, int floorNote)
+static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r, int floorNote)
 {
 	const RndArch* A = &arch[a];
-	const uint8_t isKick = (A->flags & F_KICK) != 0;
 	const uint8_t exp = g->type == RND_TYPE_EXP;
+	const uint8_t anyKick = (A->flags & F_KICK) != 0;
+	const uint8_t isKick = anyKick && !exp;		// CLS: protected kick
+	const uint8_t expKick = anyKick && exp;		// EXP: free kick, wider bounds
 
-	// spread: the kick is protected (VAR moves it less, never widened)
-	const float amt  = isKick ? 0.25f + 0.35f*g->amt : g->amt;
+	// spread: the CLS kick is protected (narrow, never widened)
+	const float amt  = isKick ? 0.44f : g->amt;
 	const float wmul = (exp && !isKick) ? 1.5f : 1.0f;
 
 	// 1. neutral engine defaults
@@ -623,7 +707,9 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 	int w;
 	if(choose(r, A->wave, 4, &w))
 	{
-		if(exp && !(A->flags & F_FIXWAVE) && (A->flags & F_TONAL) && rng_u(r) < g->amt*0.3f)
+		if(expKick && rng_u(r) < 0.2f)
+			w = W_TRI;							// EXP kick: sometimes a triangle body
+		else if(exp && !(A->flags & F_FIXWAVE) && (A->flags & F_TONAL) && rng_u(r) < g->amt*0.3f)
 		{
 			static const uint8_t tonalWaves[] = { W_SIN, W_TRI, W_SAW, W_REC, W_PWM };
 			w = tonalWaves[rng_int(r, 0, sizeof(tonalWaves)-1)];
@@ -671,8 +757,8 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 	const uint8_t upper = (v == 2) && exp && (A->flags & F_BASSREG);	// synth bass recipes as leads on V3
 	const int shift = upper ? 12 : 0;
 	int note = getRole(p, v, R_COARSE) + shift;
-	const int bandLo = A->bandLo ? A->bandLo + shift : 0;
-	const int bandHi = A->bandHi ? A->bandHi + shift : 0;
+	const int bandLo = expKick ? 26 : (A->bandLo ? A->bandLo + shift : 0);
+	const int bandHi = expKick ? 40 : (A->bandHi ? A->bandHi + shift : 0);
 
 
 	// not in the extremes: drum voices up to ~2.6 kHz, synth basses stay basses
@@ -699,7 +785,7 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 	{
 		if(bandLo && g->hz != RND_HZ_OFF)
 			note = keySnap(r, note, bandLo, bandHi, floorNote, g->key, g->hz == RND_HZ_HARD ? 2 : 1);
-		else if(isKick)	// the kick never leaves its band, Hz off: nearest key note inside it
+		else if(anyKick)	// the kick never leaves its band, Hz off: nearest key note inside it
 			note = keySnap(r, note, bandLo, bandHi, floorNote, g->key, 3);
 		else
 			note = keySnap(r, note, 0, 0, floorNote, g->key, 0);
@@ -710,6 +796,7 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 		note = floorNote;
 	}
 	if(isKick) note = clampi(note, 28, 37);			// ~41..65 Hz
+	else if(expKick) note = clampi(note, 24, 44);	// ~33..104 Hz
 	else
 	{
 		while(note > maxNote) note -= 12;			// octaves keep the key
@@ -750,6 +837,17 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 		}
 	}
 
+	// band-pass on a pitched drum voice: centre on a harmonic of the note
+	if((A->flags & F_KEYTRACK) && v < 3 && getRole(p, v, R_FILTTYPE) == FT_BP)
+	{
+		static const int8_t ktHarm[] = { 0, 12, 19, 24 };
+		int base = note;
+		if(getRole(p, v, R_MIXMOD) == 1 && rng_u(r) < 0.5f) base = getRole(p, v, R_FMFREQ);	// mix: either osc
+		const int n = base + ktHarm[rng_int(r, 0, 3)];
+		const float hz = 220.f * powf(2.f, (n - 57) / 12.f);
+		setRole(p, v, R_FILTFREQ, Randomizer_filterByte(hz) + rng_int(r, -2, 2));
+	}
+
 	// 5. Hz: HP slotting of the noise / metal voices, tighter decays
 	if(A->hpHardHz && g->hz != RND_HZ_OFF)
 	{
@@ -767,8 +865,7 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 			setRole(p, v, R_AEGDOPEN, (int)lrintf(getRole(p, v, R_AEGDOPEN) * k));
 	}
 
-	// 6. musical clamps
-	setRole(p, v, R_VOL,   clampi(getRole(p, v, R_VOL), 48, 127));
+	// 6. musical clamps (VOL: set by the loudness model at the end)
 	setRole(p, v, R_DECIM, clampi(getRole(p, v, R_DECIM), exp ? 88 : 95, 127));
 	setRole(p, v, R_AEGA,  clampi(getRole(p, v, R_AEGA), 0, 12));
 	setRole(p, v, R_RESO,  clampi(getRole(p, v, R_RESO), 0, 118));
@@ -797,10 +894,23 @@ static void applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 		setRole(p, v, R_FILTFREQ, clampi(getRole(p, v, R_FILTFREQ), 96, 127));
 		setRole(p, v, R_RESO,     clampi(getRole(p, v, R_RESO), 0, 26));
 		setRole(p, v, R_FMAMT,    clampi(getRole(p, v, R_FMAMT), 0, 16));
-		setRole(p, v, R_VOL,      clampi(getRole(p, v, R_VOL), 100, 127));
 		setRole(p, v, R_DECIM,    clampi(getRole(p, v, R_DECIM), 118, 127));
 		setRole(p, v, R_AEGA,     clampi(getRole(p, v, R_AEGA), 0, 3));
 	}
+	else if(expKick)
+	{
+		// EXP: freer kick, still a kick (body, punch, no crush)
+		setRole(p, v, R_MODAMT,   clampi(getRole(p, v, R_MODAMT), 30, 127));
+		setRole(p, v, R_AEGD,     clampi(getRole(p, v, R_AEGD), 8, 70));
+		setRole(p, v, R_FILTFREQ, clampi(getRole(p, v, R_FILTFREQ), 70, 127));
+		setRole(p, v, R_RESO,     clampi(getRole(p, v, R_RESO), 0, 60));
+		setRole(p, v, R_FMAMT,    clampi(getRole(p, v, R_FMAMT), 0, 40));
+		setRole(p, v, R_DECIM,    clampi(getRole(p, v, R_DECIM), 100, 127));
+		setRole(p, v, R_AEGA,     clampi(getRole(p, v, R_AEGA), 0, 6));
+	}
+
+	// 7. level: mix balance from the loudness model
+	return setLoudness(p, v, a);
 }
 
 //---- LFO (MOD on) ---------------------------------------------------------
@@ -831,6 +941,10 @@ static int8_t applyLfo(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 
 	uint8_t role = A->lfoTgt[g->type];
 	if(rolePar[v][role] == NA) role = R_FILTFREQ;	// e.g. a bell recipe on the metal engine
+	// COA on: no pitch movement (would leave the key) -> filter instead
+	if(g->key >= 0 && (role == R_COARSE || role == R_FINE ||
+		(role == R_FMFREQ && getRole(p, v, R_MIXMOD) == 1)))
+		role = R_FILTFREQ;
 	const int16_t par = rolePar[v][role];
 	if(par == NA) return -1;
 	const uint8_t target = paramToModTarget[par];
@@ -877,6 +991,8 @@ static int8_t applyLfo(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 	if(role == R_AEGD)   depthMax = 20;
 	if(role == R_FMFREQ) depthMax = 10;
 	if(role == R_PWM)    depthMax = 30;
+	if(role == R_MODEG)  depthMax = 24;
+	if(role == R_NOISEMIX) depthMax = 30;
 	depth = (int)lrintf(depth * (0.5f + 0.5f * g->amt));
 	depth = clampi(depth, 1, depthMax);	// 0 = slot skipped by CV_process
 
@@ -905,8 +1021,7 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 	g.type = cfg->type == RND_TYPE_EXP ? RND_TYPE_EXP : RND_TYPE_CLS;
 	g.hz   = cfg->hz <= RND_HZ_HARD ? cfg->hz : RND_HZ_SOFT;
 	g.key  = (cfg->key >= 0 && cfg->key < 12) ? cfg->key : RND_KEY_OFF;
-	g.amt  = (cfg->var > 127 ? 127 : cfg->var) / 127.f;
-	if(g.amt < 0.04f) g.amt = 0.04f;		// VAR 0: canonical recipes, still alive
+	g.amt  = g.type == RND_TYPE_EXP ? RND_SPREAD_EXP : RND_SPREAD_CLS;
 
 	const Pool* pools = g.type == RND_TYPE_EXP ? poolExp : poolCls;
 
@@ -933,7 +1048,10 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 		int floorNote = 0;
 		if(v == 1 && (arch[a[v]].flags & F_BASSREG)) floorNote = p[PAR_COARSE1] + 3;
 		if(v == 2 && (arch[a[v]].flags & F_TONAL) && p[PAR_COARSE2] <= 52) floorNote = p[PAR_COARSE2] + 5;
-		applyVoice(p, v, a[v], &g, &r, floorNote);
+		// a variant that stays far below its target even at full VOL (an FM
+		// ratio / band-pass / PWM combination that almost cancels) is rolled again
+		for(uint8_t tries=0; tries<4; tries++)
+			if(applyVoice(p, v, a[v], &g, &r, floorNote) > -RND_TOO_QUIET_DB) break;
 
 		// bass follows the kick's pitch sweep (desktop tool: a long sweep
 		// already fills the low end, the bass steps down) - not with COA,
@@ -954,13 +1072,28 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 		}
 	}
 
-	if(cfg->mod)
+	for(uint8_t v=0; v<6; v++)
 	{
-		for(uint8_t v=0; v<6; v++)
+		if(cfg->lockMask & (1u << v)) continue;
+		if(cfg->mod)
 		{
-			if(cfg->lockMask & (1u << v)) continue;
 			const int8_t s = applyLfo(p, v, a[v], &g, &r);
 			if(res) res->lfoSlot[v] = s;
+		}
+		else
+		{
+			// MOD off: a regenerated voice keeps no LFO movement from an earlier
+			// click (LFO routes in its own slots go); cv1..cv5 / accent stay
+			for(uint8_t i=0;i<CV_SLOTS_PER_VOICE;i++)
+			{
+				const uint8_t s = v * CV_SLOTS_PER_VOICE + i;
+				const uint8_t src = p[PAR_CV_SRC_1 + s];
+				if(p[PAR_CV_MOD_AMT_1 + s] && src >= CV_SRC_LFO1 && src < CV_SRC_LFO1+6)
+				{
+					p[PAR_CV_MOD_AMT_1 + s] = 0;
+					p[PAR_CV_DEST_1 + s] = 0;
+				}
+			}
 		}
 	}
 }

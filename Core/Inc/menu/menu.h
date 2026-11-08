@@ -289,7 +289,6 @@ enum NamesEnum
 	TEXT_RND_TYPE,
 	TEXT_RND_KEY,
 	TEXT_RND_MOD,
-	TEXT_RND_VAR,
 	TEXT_RND_HZ,
 
 
@@ -408,7 +407,6 @@ enum shortNamesEnum
 	SHORT_DJF,
 	SHORT_DB,
 	SHORT_CUT,
-	SHORT_VAR,
 	SHORT_HZ,
 
 	
@@ -550,7 +548,6 @@ enum longNamesEnum
 	LONG_CUTOFF,
 	LONG_RND_KEY,
 	LONG_RND_LFO,
-	LONG_RND_VAR,
 	LONG_RND_HZ
 	
 };
@@ -714,8 +711,8 @@ void menu_parseEncoder(int8_t inc, uint8_t button);
 void menu_switchPage(uint8_t pageNr);
 //-----------------------------------------------------------------
 void menu_switchSubPage(uint8_t subPageNr, uint8_t toggle);
-// kit randomizer page: enter on its first screen, or flip screens when already shown
-void menu_enterRandomizerPage(uint8_t toggle);
+// kit randomizer page (one screen: TYP COA MOD Hz)
+void menu_enterRandomizerPage();
 //-----------------------------------------------------------------
 void menu_resetActiveParameter();
 //-----------------------------------------------------------------
