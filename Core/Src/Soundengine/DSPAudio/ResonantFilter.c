@@ -153,13 +153,61 @@ float removeMaliciousSample(float in)
 }
 #pragma GCC pop_options
 #define USE_FMAF 0
+
+//------------------------------------------------------------------------------------
+// Stability of the nonlinear ZDF SVF (voices and DJ filter).
+// With a high cutoff and low damping (resonance) a bright, loud input drives the
+// integrators into inf/NaN or a full scale limit cycle at Nyquist - the voice
+// goes silent and stays silent (kit loads do not reset filter states) until
+// power off. Seen with randomized kits whose LFO sweeps a resonant cymbal
+// band-pass into the top octave. removeMaliciousSample() cannot catch it:
+// -ffast-math removes the x != x test.
+// 1) damping floor in the top octave, the same as the DJ filter uses (measured
+//    there): resonance fades out above 10 kHz cutoff, below it nothing changes
+// 2) state guard on the raw bits: a non-finite or run-away state restarts the
+//    filter (one block of silence instead of a dead voice)
+#define SVF_FS					44140.f			// REAL_FS
+#define SVF_QFLOOR_START_HZ		10000.f
+#define SVF_QFLOOR_SLOPE		(0.9f/9000.f)	// +0.1 q per kHz
+#define SVF_STATE_LIMIT			8.f				// |s1|,|s2| normal < ~3
+
+static inline float SVF_dampingFloor(const ResonantFilter* filter, float R)
+{
+	const float hz = filter->f * SVF_FS;
+	if(hz > SVF_QFLOOR_START_HZ)
+	{
+		const float qf = (hz - SVF_QFLOOR_START_HZ) * SVF_QFLOOR_SLOPE;
+		if(R < qf) R = qf;
+	}
+	return R;
+}
+
+static inline uint8_t SVF_stateBad(float x)
+{
+	union { float f; uint32_t u; } c;
+	c.f = x;
+	if((c.u & 0x7f800000u) == 0x7f800000u) return 1;		// inf / NaN
+	return (x > SVF_STATE_LIMIT) || (x < -SVF_STATE_LIMIT);
+}
+
+static inline void SVF_guardState(ResonantFilter* filter)
+{
+	if(SVF_stateBad(filter->s1) || SVF_stateBad(filter->s2))
+	{
+		filter->s1 = 0;
+		filter->s2 = 0;
+#if ENABLE_NONLINEAR_INTEGRATORS
+		filter->zi = 0;
+#endif
+	}
+}
 //------------------------------------------------------------------------------------
 IN_ITCM_RAM void SVF_calcBlockZDF(ResonantFilter* filter, const uint8_t type, int16_t* buf, const uint8_t size)
 {
 	uint8_t i;
 	const float f 	= filter->g;
 	//fix unstable filter for high f and r settings
-	const float R 	= filter->f >= 0.4499f ? 1 : filter->q;
+	const float R 	= SVF_dampingFloor(filter, filter->f >= 0.4499f ? 1 : filter->q);
 	const float ff 	= f*f;
 
 	if(type== FILTER_OFF) return;
@@ -211,8 +259,7 @@ IN_ITCM_RAM void SVF_calcBlockZDF(ResonantFilter* filter, const uint8_t type, in
 
 	} else {
 
-		filter->s1 = removeMaliciousSample(filter->s1);
-		filter->s2 = removeMaliciousSample(filter->s2);
+		SVF_guardState(filter);
 		for(i=0;i<size;i++)
 		{
 
@@ -380,7 +427,7 @@ IN_ITCM_RAM void SVF_calcBlockCheapZDF(ResonantFilter* filter, const uint8_t typ
 	uint8_t i;
 	const float f 	= filter->g;
 	//fix unstable filter for high f and r settings
-	const float R 	= filter->f >= 0.4499f ? 1 : filter->q;
+	const float R 	= SVF_dampingFloor(filter, filter->f >= 0.4499f ? 1 : filter->q);
 	const float ff 	= f*f;
 
 	if(type== FILTER_OFF) return;
@@ -432,6 +479,7 @@ IN_ITCM_RAM void SVF_calcBlockCheapZDF(ResonantFilter* filter, const uint8_t typ
 
 	} else {
 
+		SVF_guardState(filter);
 		for(i=0;i<size;i++)
 		{
 	#if USE_SHAPER_NONLINEARITY

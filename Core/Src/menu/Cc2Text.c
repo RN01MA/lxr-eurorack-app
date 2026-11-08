@@ -465,7 +465,11 @@ void paramToModTargetInit()
 	// populate this array with indices into modTargets so we can do reverse lookup
 	uint8_t i;
 	for(i=0;i<(sizeof(modTargets)/sizeof(ModTarg));i++){
-		paramToModTarget[pgm_read_word(&modTargets[i].param)]=i;
+		const uint16_t par = pgm_read_word(&modTargets[i].param);
+		// PAR_MORPH (302) is a mod target but lies beyond the array: it wrote 1 byte
+		// past its end (into the next variable)
+		if(par < END_OF_SOUND_PARAMETERS)
+			paramToModTarget[par]=i;
 	}
 } 
 
