@@ -2,11 +2,11 @@
  * RandomizerUi.h
  *
  * Front panel side of the kit randomizer (SHIFT+PERF):
- *   DRUM tap            -> new kit (on release)
- *   hold DRUM + voice   -> lock / unlock that voice
- *   hold voice + DRUM   -> lock / unlock (spec order), no new kit
+ *   DRUM                -> new kit right on the press
+ *   hold voice(s) + DRUM-> the held voices are left as they are
  *   voice buttons       -> trigger the voice (audition, like PERF)
- *   voice LEDs          -> locked voices lit; V1->V6 bar after a new kit
+ *   voice LEDs          -> V1->V6 bar after a new kit (kept voices skipped)
+ *   display             -> recipe per voice for 2.5 s, kept voices "---"
  *
  * Copyright (C) 2012-2026 Erica Synths
  * SPDX-License-Identifier: GPL-3.0-only
