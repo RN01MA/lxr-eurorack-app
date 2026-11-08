@@ -868,6 +868,7 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 	// 6. musical clamps (VOL: set by the loudness model at the end)
 	setRole(p, v, R_DECIM, clampi(getRole(p, v, R_DECIM), exp ? 88 : 95, 127));
 	setRole(p, v, R_AEGA,  clampi(getRole(p, v, R_AEGA), 0, 12));
+	setRole(p, v, R_AEGD,  clampi(getRole(p, v, R_AEGD), 2, 127));	// decay 0 = no hit (EXP clap + Hz tightening)
 	setRole(p, v, R_RESO,  clampi(getRole(p, v, R_RESO), 0, 118));
 	{
 		const int type = getRole(p, v, R_FILTTYPE);
