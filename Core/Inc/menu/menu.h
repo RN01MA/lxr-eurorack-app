@@ -291,6 +291,8 @@ enum NamesEnum
 	TEXT_RND_MOD,
 	TEXT_RND_HZ,
 
+	TEXT_CPU_LOAD,		// CONFIG, read only
+
 
 	NUM_NAMES
 };
@@ -408,6 +410,7 @@ enum shortNamesEnum
 	SHORT_DB,
 	SHORT_CUT,
 	SHORT_HZ,
+	SHORT_CPU,
 
 	
 };
@@ -548,7 +551,8 @@ enum longNamesEnum
 	LONG_CUTOFF,
 	LONG_RND_KEY,
 	LONG_RND_LFO,
-	LONG_RND_HZ
+	LONG_RND_HZ,
+	LONG_CPU_LOAD
 	
 };
 
@@ -713,6 +717,8 @@ void menu_switchPage(uint8_t pageNr);
 void menu_switchSubPage(uint8_t subPageNr, uint8_t toggle);
 // kit randomizer page (one screen: TYP COA MOD Hz)
 void menu_enterRandomizerPage();
+// CONFIG page CPU load: call from the main loop
+void menu_updateCpuLoad();
 //-----------------------------------------------------------------
 void menu_resetActiveParameter();
 //-----------------------------------------------------------------

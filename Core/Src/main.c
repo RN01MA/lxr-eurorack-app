@@ -484,6 +484,7 @@ voiceControl_start();
 	//  menu_tick();
 	  led_tickHandler();
 	  RndUi_tick();
+	  menu_updateCpuLoad();
 	  soundengine_process();
 	//  menu_tick();
 	  adc_checkPots();

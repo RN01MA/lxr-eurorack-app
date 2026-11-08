@@ -44,6 +44,7 @@ add_library(lxr_ui OBJECT
     Src/lcd.c
     Src/encoder.c
     Src/buttonHandler.c
+    Src/fxRoute.c
     Src/ledHandler.c
     Src/graphic.c
     Src/frontPanelParser.c

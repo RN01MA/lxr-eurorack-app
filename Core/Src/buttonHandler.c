@@ -29,6 +29,7 @@
 #include "Soundengine/MIDI/MidiVoiceControl.h"
 #include <Soundengine/TriggerProcessor.h>
 #include "Preset/RandomizerUi.h"
+#include "fxRoute.h"
 
 //used to remember the last active page when entering the sequencer mode
 //needed to return to the previously shown page when seq mode button is released
@@ -1596,6 +1597,7 @@ static void buttonHandler_partButtonReleased(uint8_t partNr)
 void buttonHandler_voiceButtonReleased(uint8_t voiceNr)
 {
 #if EURORACK_MODULE
+	if(fxRoute_isActive()) return;
 	if(menu_activePage == RND_PAGE)
 	{
 		RndUi_voiceReleased(voiceNr);
@@ -1618,6 +1620,12 @@ void buttonHandler_voiceButtonReleased(uint8_t voiceNr)
  void buttonHandler_voiceButtonPressed(uint8_t voiceNr)
 {
 #if EURORACK_MODULE
+	//SHIFT+FX held: route the voice, no trigger
+	if(fxRoute_isActive())
+	{
+		fxRoute_voicePressed(voiceNr);
+		return;
+	}
 	//kit randomizer: trigger (audition) or, with DRUM held, lock / unlock
 	if(menu_activePage == RND_PAGE)
 	{
@@ -1880,7 +1888,11 @@ void buttonHandler_buttonPressed(uint8_t buttonNr) {
 #if EURORACK_MODULE
 
 	case BUT_FX:
-		buttonHandler_handleModeButtons(SELECT_MODE_FX);
+		//SHIFT+FX held: voice buttons route voices to / from the FX bus (fxRoute.c)
+		if(buttonHandler_getShiftButton())
+			fxRoute_fxPressed(1);
+		else
+			buttonHandler_handleModeButtons(SELECT_MODE_FX);
 		break;
 
 	case BUT_SHIFT:
@@ -2423,6 +2435,7 @@ void buttonHandler_buttonPressed(uint8_t buttonNr) {
 //--------------------------------------------------------
 void buttonHandler_buttonReleased(uint8_t buttonNr)
 {
+	if(buttonNr == BUT_FX) fxRoute_fxReleased();
 
 	switch (buttonNr)
 	{

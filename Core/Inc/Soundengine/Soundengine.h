@@ -33,4 +33,7 @@
 void soundengine_init();
 void soundengine_process();
 uint8_t soundengine_calcNextSampleBlock();
+
+// audio load [% of one block's time budget], fast rise / slow fall (CONFIG page)
+extern volatile float soundengine_cpuLoad;
 #endif /* INC_SOUNDENGINE_SOUNDENGINE_H_ */

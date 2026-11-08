@@ -20,6 +20,7 @@
 #include "Preset/PresetManager.h"
 #include "Preset/Randomizer.h"
 #include "Preset/RandomizerUi.h"
+#include "fxRoute.h"
 #include "menu/menuPages.h"
 #include "menu/MenuText.h"
 //#include "../Hardware/timebase.h"
@@ -271,6 +272,8 @@ const Name valueNames[NUM_NAMES] =
 		{SHORT_COARSE, CAT_RND, LONG_RND_KEY},/*TEXT_RND_KEY*/
 		{SHORT_MOD, CAT_RND, LONG_RND_LFO},/*TEXT_RND_MOD*/
 		{SHORT_HZ, CAT_RND, LONG_RND_HZ},/*TEXT_RND_HZ*/
+
+		{SHORT_CPU, CAT_GLOBAL, LONG_CPU_LOAD},/*TEXT_CPU_LOAD*/
 
 
 
@@ -618,6 +621,7 @@ const enum Datatypes PROGMEM parameter_dtypes[NUM_PARAMS] = {
 		/*PAR_RND_KEY*/			DTYPE_MENU | (MENU_RND_KEY<<8),
 		/*PAR_RND_MOD*/			DTYPE_ON_OFF,
 		/*PAR_RND_HZ*/			DTYPE_MENU | (MENU_RND_HZ<<8),
+		/*PAR_CPU_LOAD*/		DTYPE_0B255,
 	    /*PAR_BPM*/ 			DTYPE_0B255,							//251
 	    /*PAR_MIDI_CHAN_1*/ 	DTYPE_1B16,
 	    /*PAR_MIDI_CHAN_2*/ 	DTYPE_1B16,
@@ -1953,6 +1957,17 @@ void menu_repaintGeneric()
 							numtostrpu(valueAsText,curParmVal,' ');
 						}
 					}
+					else if(parNr == PAR_CPU_LOAD)
+					{
+						// "42%", from 100 on just the number (honest overrun, no clamp)
+						if(curParmVal < 100)
+						{
+							valueAsText[0] = curParmVal >= 10 ? (char)('0' + curParmVal/10) : ' ';
+							valueAsText[1] = (char)('0' + curParmVal%10);
+							valueAsText[2] = '%';
+						}
+						else numtostrpu(valueAsText,curParmVal,' ');
+					}
 					else
 					{
 						// fallthrough for the rest of the unsigned values
@@ -2001,6 +2016,10 @@ void menu_repaint()
 	else if((menu_activePage >= PATTERN_LOAD_PAGE  && menu_activePage <= SONG_MODE_PAGE))
 	{
 		menu_repaintSimplePage();
+	}
+	else if(fxRoute_paint(editDisplayBuffer))
+	{
+		// SHIFT+FX held: voices on the FX bus
 	}
 	else if((menu_activePage == RND_PAGE) && RndUi_paint(editDisplayBuffer))
 	{
@@ -3193,6 +3212,8 @@ static void menu_encoderChangeParameter(int8_t inc)
 		paramNr		= pgm_read_word(&menuPages[menu_activePage][activePage].bot1 + activeParameter);
 	}
 	//uint8_t *paramValue = &mainParameters[paramNr];
+	if(paramNr == PAR_CPU_LOAD) return;			// display only
+
 	uint8_t *paramValue;
 
 	paramValue = &activeParameters[paramNr];
@@ -3653,6 +3674,21 @@ void menu_switchSubPage(uint8_t subPageNr, uint8_t toggle)
 	menuIndex = (uint8_t)( (activePage << PAGE_SHIFT) | activeParameter);
 }
 
+//-----------------------------------------------------------------
+// CPU load (Soundengine.c, peak-weighted) -> CONFIG page, ~4x per second
+void menu_updateCpuLoad()
+{
+	static uint32_t last = 0;
+	if(systick_ticks - last < 1000) return;		// systick 0.25 ms
+	last = systick_ticks;
+
+	const float l = soundengine_cpuLoad;
+	const uint8_t v = l >= 255.f ? 255 : (uint8_t)(l + 0.5f);
+	if(v == activeParameters[PAR_CPU_LOAD]) return;
+	activeParameters[PAR_CPU_LOAD] = v;
+	if(menu_activePage == MENU_MIDI_PAGE && menu_getSubPage() == 0 && !screensaver_Active)
+		menu_repaint();
+}
 //-----------------------------------------------------------------
 void menu_enterRandomizerPage()
 {
@@ -4446,6 +4482,8 @@ uint8_t menu_parseKnobValue(uint8_t potNr, int16_t diff)
 
 	//parameter fetch. given the value of the pot, and the parameter number
 	// fetch the actual numeric value that the parameter should be set to
+	if(paramNr == PAR_CPU_LOAD) return 0;		// display only
+
 	uint8_t dtypeValue = limitPotValue(diff, paramNr);//getDtypeValue(potValue,paramNr);
 #if !EURORACK_MODULE
 	menu_processSpecialCaseValues(paramNr/*,&dtypeValue*/);

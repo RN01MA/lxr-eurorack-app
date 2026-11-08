@@ -18,15 +18,30 @@
 //#include "Soundengine/USB/usb_manager.h"
 #include "Soundengine/MIDI/Uart.h"
 
+volatile float soundengine_cpuLoad = 0;
+
+// CPU meter: cycles of one block vs. the time one block plays (DWT cycle
+// counter, enabled by DWT_Delay_Init in main). Time spent in higher priority
+// interrupts during the block counts as load too - it is time the block lacks.
+#define CPU_FALL	0.9986f		// ~1 s fall (690 blocks/s at 64 samples)
+
 uint8_t soundengine_calcNextSampleBlock()
 {
 	if(bCurrentSampleValid!= SAMPLE_VALID)
 	{
+		const uint32_t t0 = DWT->CYCCNT;
 	#if USE_DAC2
 		mixer_calcNextSampleBlock((int16_t*)&dma_buffer[bCurrentSampleValid*(OUTPUT_DMA_SIZE*2)],(int16_t*)&dma_buffer2[bCurrentSampleValid*(OUTPUT_DMA_SIZE*2)]);
 	#else
 		mixer_calcNextSampleBlock(&dma_buffer[bCurrentSampleValid*(OUTPUT_DMA_SIZE*2)],&dma_buffer2[(1-bCurrentSampleValid)*(OUTPUT_DMA_SIZE*2)]);
 	#endif
+		const uint32_t dt = DWT->CYCCNT - t0;		// unsigned: wrap safe
+		static float budget = 0;
+		if(budget == 0) budget = (float)SystemCoreClock * (float)OUTPUT_DMA_SIZE / 44140.f;	// REAL_FS
+		const float inst = 100.f * (float)dt / budget;
+		const float cur = soundengine_cpuLoad;
+		soundengine_cpuLoad = inst > cur ? inst : cur * CPU_FALL + inst * (1.f - CPU_FALL);
+
 		bCurrentSampleValid = SAMPLE_VALID;
 
 		return 1;

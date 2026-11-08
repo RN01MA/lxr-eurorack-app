@@ -582,6 +582,7 @@ const char shortNames[][4]  =
 	{"db"},
 	{"cut"},
 	{"hz"},
+	{"cpu"},
 
 };
 //-----------------------------------------------------------------
@@ -724,6 +725,7 @@ const char longNames[][16] =
 	{"Key"},
 	{"LFO Rout"},
 	{"Spectrum"},
+	{"CPU load"},
 };
 
 

@@ -446,6 +446,8 @@ enum ParamEnums
 	PAR_RND_MOD,					// LFO routing on/off
 	PAR_RND_HZ,						// spectral slotting off / soft / hard
 
+	PAR_CPU_LOAD,					// CONFIG: audio block load [%], read only
+
 	
 	//#########################################
 	//######## Global Parameters ##############
