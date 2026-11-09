@@ -1,5 +1,7 @@
 # LXRE_MX — custom firmware for the Erica Synths LXR Eurorack module
 
+<img src="docs/lxre_mx_v1.0_cover.jpg" alt="LXRE_MX v1.0 — custom firmware for the Erica Synths LXR Drum Module" width="600">
+
 **LXRE_MX v1.0** by Roman (RN01MA) is an unofficial, modified version of the open-source LXR V2
 Eurorack firmware. It is not made, approved or supported by Erica Synths. Install at your own risk.
 
