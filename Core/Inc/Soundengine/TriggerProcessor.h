@@ -95,8 +95,10 @@ extern uint8_t trigger_dividerClockOut1;
 //extern uint8_t trigger_dividerClockOut2;
 extern uint8_t trigger_prescalerClockInput;
 
-uint8_t Trigger_getAccent(uint8_t voice);
+uint8_t Trigger_getAccent(uint8_t voice);		// accent input level now (127 / LOW_VOLUME)
 
+#define TRIGGER_INPUTS	7						// voices 1..6 + open hihat
+uint8_t Trigger_takeAccent(uint8_t voice);		// accent for a trigger: latched on the edge OR on now; clears the latch
 uint8_t Trigger_getVoiceTriggered(uint8_t voice);
 void Trigger_resetVoiceTriggered(uint8_t voice);
 

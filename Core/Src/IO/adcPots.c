@@ -246,30 +246,28 @@ void adc_checkPots()
 };
 //------------------------------------------------------------------------
 #if EURORACK_MODULE
-void adc_checkCv()
+// all 5 CV inputs from the DMA buffer (always fresh). Called by the audio
+// engine right before the CV matrix is processed, so a pitch / level CV that
+// changes together with a trigger is already there on the first sample of
+// the hit (the main loop used to update one input per pass, several ms late).
+void adc_updateCvs()
 {
-	uint8_t i = adc2_idx+8;
-
-
-
+	for(uint8_t i=8; i<8+5; i++)
 	{
 		if( ((adc_buf[i]>>4) > ((adc_buf_old[i]>>4) + (HYSTERSIS/8))) ||
 			((adc_buf_old[i]>>4) > ((adc_buf[i]>>4) + (HYSTERSIS/8))))
 		{
 			//CVs are inverted by analogue frontend
-			float newValue = 1.f - ((adc_buf[i]>>4) / 4096.f);
+			const float newValue = 1.f - ((adc_buf[i]>>4) / 4096.f);
 			adc_buf_old[i] = adc_buf[i];
-
-			//if (newValue !=  adc_faderValues[i] )
-			//{
-		//	if(newValue < 0.01f) newValue = 0.f;
 			adc_CvValues[i-8] = newValue;
-			//}
 		}
 	}
+}
 
-	adc2_idx++;
-	if(adc2_idx>=5)adc2_idx=0;
+void adc_checkCv()
+{
+	adc_updateCvs();
 }
 
 float adc_getCvValue(uint8_t idx)

@@ -221,13 +221,17 @@ void SysTick_Handler(void)
 
   /* Handle triggers based on collected flags from EXTI */
 
-  static uint8_t voiceToBeTriggered[6] = {0,0,0,0,0,0};
+  static uint8_t voiceToBeTriggered[TRIGGER_INPUTS] = {0,0,0,0,0,0,0};
 
-  for (int i=0; i<6; i++) {
+  // open hihat first: when both hats come on the same tick the closed one
+  // chokes the open one, as before (the open hat used to fire straight away)
+  static const uint8_t order[TRIGGER_INPUTS] = {6,0,1,2,3,4,5};
+  for (int k=0; k<TRIGGER_INPUTS; k++) {
+    const int i = order[k];
 
     if(voiceToBeTriggered[i]) {
       Trigger_resetVoiceTriggered(i);
-      const uint8_t vel = Trigger_getAccent(i);
+      const uint8_t vel = Trigger_takeAccent(i);
       voiceControl_noteOn(i , SEQ_DEFAULT_NOTE, vel);
       voiceToBeTriggered[i] = 0;
     }

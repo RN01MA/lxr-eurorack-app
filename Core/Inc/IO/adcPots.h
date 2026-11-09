@@ -40,6 +40,7 @@ extern uint16_t adc2_buf[ADC2_BUF_LEN];
 void adc_checkPots();
 
 void adc_checkCv();
+void adc_updateCvs();		// all CV inputs, called from the audio engine
 float adc_getCvValue(uint8_t idx);
 
 //void adc_checkFaders();

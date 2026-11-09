@@ -235,6 +235,25 @@ void EXTI4_IRQHandler(void)
 	}
 }
 
+// accent input level right now: 1 = accent on (input inverted by the
+// transistor front end: pin low = accent)
+static uint8_t accentPinOn(uint8_t voice)
+{
+	uint16_t pinState = 1;
+	switch(voice)
+	{
+	case 0: pinState = (Accent_1_GPIO_Port->IDR & Accent_1_Pin); break;
+	case 1: pinState = (Accent_2_GPIO_Port->IDR & Accent_2_Pin); break;
+	case 2: pinState = (Accent_3_GPIO_Port->IDR & Accent_3_Pin); break;
+	case 3: pinState = (Accent_4_GPIO_Port->IDR & Accent_4_Pin); break;
+	case 4: pinState = (Accent_5_GPIO_Port->IDR & Accent_5_Pin); break;
+	case 5:
+	case 6: pinState = (Accent_6_GPIO_Port->IDR & Accent_6_Pin); break;
+	default: break;
+	}
+	return pinState == 0;
+}
+
 uint8_t Trigger_getAccent(uint8_t voice)
 {
 	//Input signal inverted -> transistor input... 1=Off, 0=On
@@ -279,7 +298,19 @@ uint8_t Trigger_getAccent(uint8_t voice)
 
 }
 
-static uint8_t voiceTriggered[6] = {0,0,0,0,0,0};
+// trigger inputs seen by the EXTI handlers, played from the SysTick handler a
+// tick later (index 6 = open hihat). The accent level is latched on the
+// trigger edge as well: a short accent pulse that is already over when the
+// voice is played still counts, a slightly late one is seen at play time.
+static volatile uint8_t voiceTriggered[TRIGGER_INPUTS] = {0,0,0,0,0,0,0};
+static volatile uint8_t accentAtEdge[TRIGGER_INPUTS]   = {0,0,0,0,0,0,0};
+
+uint8_t Trigger_takeAccent(uint8_t voice)
+{
+	const uint8_t on = accentAtEdge[voice] || accentPinOn(voice);
+	accentAtEdge[voice] = 0;
+	return on ? 127 : LOW_VOLUME;
+}
 
 uint8_t Trigger_getVoiceTriggered(uint8_t voice) {
 	if(voiceTriggered[voice]) {
@@ -300,6 +331,7 @@ void EXTI15_10_IRQHandler(void)
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_10);
 
 		voiceTriggered[2] = 1;
+		if(accentPinOn(2)) accentAtEdge[2] = 1;
 	}
 
 	if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_11) != RESET)
@@ -307,6 +339,7 @@ void EXTI15_10_IRQHandler(void)
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_11);
 
 		voiceTriggered[1] = 1;
+		if(accentPinOn(1)) accentAtEdge[1] = 1;
 	}
 
 	if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_12) != RESET)
@@ -314,6 +347,7 @@ void EXTI15_10_IRQHandler(void)
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_12);
 
 		voiceTriggered[5] = 1;
+		if(accentPinOn(5)) accentAtEdge[5] = 1;
 	}
 
 	if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_13) != RESET)
@@ -321,6 +355,7 @@ void EXTI15_10_IRQHandler(void)
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_13);
 
 		voiceTriggered[4] = 1;
+		if(accentPinOn(4)) accentAtEdge[4] = 1;
 	}
 
 	if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_14) != RESET)
@@ -328,6 +363,7 @@ void EXTI15_10_IRQHandler(void)
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_14);
 
 		voiceTriggered[3] = 1;
+		if(accentPinOn(3)) accentAtEdge[3] = 1;
 	}
 
 	if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
@@ -335,6 +371,7 @@ void EXTI15_10_IRQHandler(void)
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
 
 		voiceTriggered[0] = 1;
+		if(accentPinOn(0)) accentAtEdge[0] = 1;
 	}
 	/*
 	  // EXTI line interrupt detected
@@ -361,9 +398,9 @@ void EXTI9_5_IRQHandler(void)
 	{
 		__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_9);
 
-		const uint8_t voice = 6;
-		const uint8_t vel = Trigger_getAccent(voice);
-		voiceControl_noteOn(voice , SEQ_DEFAULT_NOTE, vel);
+		// open hihat: played from the SysTick handler like the other voices
+		voiceTriggered[6] = 1;
+		if(accentPinOn(6)) accentAtEdge[6] = 1;
 	}
 #if !EURORACK_MODULE
 	/* EXTI line interrupt detected */

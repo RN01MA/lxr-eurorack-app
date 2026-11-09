@@ -21,6 +21,7 @@
 #include "Soundengine/DSPAudio/Snare.h"
 #include "Soundengine/DSPAudio/HiHat.h"
 #include "Soundengine/DSPAudio/BufferTools.h"
+#include "IO/adcPots.h"
 #include "Soundengine/DSPAudio/squareRootLut.h"
 #include "main.h"
 #include "menu/menu.h"
@@ -579,7 +580,9 @@ IN_ITCM_RAM void mixer_calcNextSampleBlock(int16_t* output,int16_t* output2)
 	SVF_recalcFreq(&cymbalVoice.filter);
 	SVF_recalcFreq(&hatVoice.filter);
 
-	//process CV
+	//process CV (inputs read fresh first: a CV that changes with a trigger
+	//is applied before the triggered voice renders its first sample)
+	adc_updateCvs();
 	CV_process();
 
 	//--- Calc async -----

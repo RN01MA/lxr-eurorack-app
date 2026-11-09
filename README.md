@@ -19,8 +19,7 @@ What's new compared to the original firmware:
 - **Click-free kit morphing**: switch-type parameters change once, half way through the morph.
 - **CPU load** shown in CONFIG.
 - Fixes for bugs in the original firmware (a voice filter that could fall silent until reboot,
-  out-of-bounds writes in the MIDI and modulation tables; v1.1: an oscillator read past the wave
-  table in FM / PWM / wavetable modes).
+  out-of-bounds writes in the MIDI and modulation tables; v1.1: further minor fixes).
 
 The ready-made update file and the manual are attached to the
 [releases](https://github.com/RN01MA/lxr-eurorack-app/releases). The rest of this README describes

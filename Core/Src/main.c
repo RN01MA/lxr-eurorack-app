@@ -503,7 +503,7 @@ voiceControl_start();
 	  soundengine_process();
 	//  menu_tick();
 	//  adc_checkFaders();
-	  adc_checkCv();
+	//  CV inputs: read by the audio engine (mixer) right before the CV matrix
 	  soundengine_process();
 	//  menu_tick();
 
