@@ -606,6 +606,18 @@ static const RndArch arch[RND_A_COUNT] =
 			 [R_MODF1]=RG(90,30), [R_MODF2]=RG(110,16), [R_MODG1]=RG(70,30), [R_MODG2]=RG(60,30),
 			 [R_FILTFREQ]=RG(96,20), [R_RESO]=RG(30,24), [R_DRIVE]=RG(60,30),
 			 [R_VOL]=RG(100,12), [R_DECIM]=RG(122,6) } },
+
+	// hum: touching a live jack - 50 Hz mains buzz (square, hard driven),
+	// contact crackle (noise mixed in + a click transient). Not in key: mains
+	// hum does not care. MOD on: the crackle changes per hit (S&H)
+	[RND_A_HUM] = { .name="HUM", .wave={C1(W_REC),C1(W_REC),C1(W_SAW)}, .modWave={C1(W_NOI)}, .filt={C1(FT_LP)}, .mixMod=MM_MIX,
+		.trans=TR(1)|TR(6)|TR(7),
+		.flags=F_NOTIGHT|F_NOFLIP|F_FIXWAVE,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_FMAMT},
+		.r={ [R_COARSE]=RG(31,0), [R_AEGA]=RG(0,2), [R_AEGD]=RG(34,16), [R_VOLSLOPE]=RG(50,20),
+			 [R_MODAMT]=RG(0,0), [R_FMAMT]=RG(24,16), [R_NOISEMIX]=RG(30,20), [R_NOISEFREQ]=RG(110,17),
+			 [R_FILTFREQ]=RG(86,22), [R_RESO]=RG(10,10), [R_FILTDRIVE]=RG(50,30), [R_DRIVE]=RG(96,20),
+			 [R_TRANSVOL]=RG(70,40), [R_TRANSFREQ]=RG(64,50), [R_VOL]=RG(100,12), [R_DECIM]=RG(120,7) } },
 };
 
 //---- pools ----------------------------------------------------------------
@@ -640,8 +652,8 @@ static const Pool poolExp[6] =
 static const Pool poolGlt[6] =
 {
 	{ 3, { {RND_A_TICK,4,4}, {RND_A_SUB,3,3}, {RND_A_DKICK,3,3} } },
-	{ 5, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2} } },
-	{ 6, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,1,1} } },
+	{ 6, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2}, {RND_A_HUM,2,2} } },
+	{ 7, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,1,1}, {RND_A_HUM,2,2} } },
 	{ 5, { {RND_A_CLICK,5,5}, {RND_A_BIT,3,3}, {RND_A_STUTTER,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2} } },
 	{ 4, { {RND_A_METAL,6,6}, {RND_A_STUTTER,2,2}, {RND_A_DATA,2,2}, {RND_A_REV,2,2} } },
 	{ 4, { {RND_A_HISS,5,5}, {RND_A_TONE,3,3}, {RND_A_CLICK,2,2}, {RND_A_REV,1,1} } },
@@ -810,7 +822,7 @@ static const float rndLoudTarget[RND_A_COUNT] =
 	[RND_A_CLICK] = -15.0f, [RND_A_ZAP]   = -13.5f, [RND_A_BIT]  = -14.0f,
 	[RND_A_STUTTER]=-14.0f, [RND_A_METAL] = -16.0f, [RND_A_HISS] = -21.0f,
 	[RND_A_TONE]  = -21.0f,	// HIS / TON: hat level
-	[RND_A_SWEEP] = -14.0f, [RND_A_REV]   = -14.0f,
+	[RND_A_SWEEP] = -14.0f, [RND_A_REV]   = -14.0f, [RND_A_HUM] = -13.5f,
 };
 
 static float clip127(int x) { return (float)(x < 0 ? 0 : x > 127 ? 127 : x); }
@@ -993,6 +1005,14 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 	}
 	setRole(p, v, R_COARSE, note);
 	note = getRole(p, v, R_COARSE);
+
+	// hum: mains frequency, 50 Hz (note 31 + 35 cent) or its octave 100 Hz
+	if(a == RND_A_HUM)
+	{
+		note = rng_u(r) < 0.7f ? 31 : 43;
+		setRole(p, v, R_COARSE, note);
+		setRole(p, v, R_FINE, 107);
+	}
 
 	// reese detune (after the key: the modulator stays exactly on the note)
 	if(A->detMax)
