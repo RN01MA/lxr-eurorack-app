@@ -238,6 +238,8 @@ typedef struct { uint8_t c1; uint8_t r; } RndRange;	// c1 = centre+1, 0 = role n
 #define LP_GROOVE	2		// beat locked: restarted by the kick
 #define LP_ENV		3		// per hit envelope: falling saw restarted by the own voice
 #define LP_SH		4		// sample & hold, free running
+#define LP_SWEEP	5		// GLT: filter sweep per hit, falling or rising saw restarted by the own voice
+#define LP_RISE		6		// GLT: rising saw over the attack (REV: filter opens with the swell)
 
 typedef struct RndArchStruct
 {
@@ -579,6 +581,31 @@ static const RndArch arch[RND_A_COUNT] =
 		.r={ [R_COARSE]=RG(106,8), [R_AEGA]=RG(0,0), [R_AEGD]=RG(4,3), [R_AEGDOPEN]=RG(12,6), [R_VOLSLOPE]=RG(6,6),
 			 [R_MODG1]=RG(0,0), [R_MODG2]=RG(0,0),
 			 [R_FILTFREQ]=RG(127,0), [R_RESO]=RG(0,0), [R_VOL]=RG(90,14), [R_DECIM]=RG(127,0) } },
+
+	// sweep: resonant filter swept on every hit (down or up). The sweep is an
+	// LFO restarted by the voice, so SWP is only picked with MOD on
+	[RND_A_SWEEP] = { .name="SWP", .wave={C1(W_SAW),C1(W_REC),C1(W_NOI)}, .filt={C1(FT_LP),C1(FT_LP),C1(FT_BP)}, .mixMod=MM_FM,
+		.trans=TR(1)|TR(2)|TR(4),
+		.flags=F_TONAL|F_NOFLIP|F_FIXWAVE, .bandLo=48, .bandHi=72,
+		.lfoProf={LP_NONE,LP_NONE,LP_SWEEP}, .lfoTgt={0,0,R_FILTFREQ},
+		.r={ [R_COARSE]=RG(56,14), [R_AEGA]=RG(0,0), [R_AEGD]=RG(22,8), [R_VOLSLOPE]=RG(16,10),
+			 [R_MODAMT]=RG(6,6), [R_MODEG]=RG(10,6), [R_FMAMT]=RG(0,10),
+			 [R_NOISEMIX]=RG(100,27), [R_NOISEFREQ]=RG(100,27),
+			 [R_FILTFREQ]=RG(56,16), [R_RESO]=RG(96,18), [R_FILTDRIVE]=RG(40,30), [R_DRIVE]=RG(70,30),
+			 [R_TRANSVOL]=RG(6,6), [R_VOL]=RG(100,12), [R_DECIM]=RG(118,9) } },
+
+	// reverse: slow swell (attack ~130..400 ms) and a hard cut, no tail.
+	// Trigger it a step or two before the cut should land. MOD on: the
+	// filter opens with the swell (rising saw restarted by the voice)
+	[RND_A_REV] = { .name="REV", .wave={C1(W_SIN),C1(W_TRI),C1(W_SAW)}, .modWave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP),C1(FT_LP),C1(FT_BP)}, .mixMod=MM_FM,
+		.flags=F_TONAL|F_NOTIGHT|F_NOFLIP|F_FIXWAVE, .bandLo=60, .bandHi=84,
+		.lfoProf={LP_NONE,LP_NONE,LP_RISE}, .lfoTgt={0,0,R_FILTFREQ},
+		.r={ [R_COARSE]=RG(72,12), [R_AEGA]=RG(78,14), [R_AEGD]=RG(2,0), [R_AEGDOPEN]=RG(3,1), [R_VOLSLOPE]=RG(40,20),
+			 [R_MODAMT]=RG(0,6), [R_FMAMT]=RG(40,40), [R_FMFREQ]=RG(90,24),
+			 [R_NOISEMIX]=RG(110,17), [R_NOISEFREQ]=RG(100,27),
+			 [R_MODF1]=RG(90,30), [R_MODF2]=RG(110,16), [R_MODG1]=RG(70,30), [R_MODG2]=RG(60,30),
+			 [R_FILTFREQ]=RG(96,20), [R_RESO]=RG(30,24), [R_DRIVE]=RG(60,30),
+			 [R_VOL]=RG(100,12), [R_DECIM]=RG(122,6) } },
 };
 
 //---- pools ----------------------------------------------------------------
@@ -608,18 +635,20 @@ static const Pool poolExp[6] =
 	{ 5, { {RND_A_HIHAT,4,2}, {RND_A_CYMBAL,1,1}, {RND_A_RIDE,1,1}, {RND_A_SHAKER,1,1}, {RND_A_BELL,0,1} } },
 };
 
-// GLT: ~60 % clean (sine / click / hiss), ~40 % dirty (drive / crush / FM / stutter)
+// GLT: ~60 % clean (sine / click / hiss), ~40 % dirty (drive / crush / FM / stutter),
+// plus sweeps (MOD on only) and reverse swells
 static const Pool poolGlt[6] =
 {
 	{ 3, { {RND_A_TICK,4,4}, {RND_A_SUB,3,3}, {RND_A_DKICK,3,3} } },
-	{ 3, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2} } },
-	{ 4, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2} } },
-	{ 3, { {RND_A_CLICK,5,5}, {RND_A_BIT,3,3}, {RND_A_STUTTER,2,2} } },
-	{ 3, { {RND_A_METAL,6,6}, {RND_A_STUTTER,2,2}, {RND_A_DATA,2,2} } },
-	{ 3, { {RND_A_HISS,5,5}, {RND_A_TONE,3,3}, {RND_A_CLICK,2,2} } },
+	{ 5, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2} } },
+	{ 6, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,1,1} } },
+	{ 5, { {RND_A_CLICK,5,5}, {RND_A_BIT,3,3}, {RND_A_STUTTER,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2} } },
+	{ 4, { {RND_A_METAL,6,6}, {RND_A_STUTTER,2,2}, {RND_A_DATA,2,2}, {RND_A_REV,2,2} } },
+	{ 4, { {RND_A_HISS,5,5}, {RND_A_TONE,3,3}, {RND_A_CLICK,2,2}, {RND_A_REV,1,1} } },
 };
 
-static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid)
+// noLfo: MOD off -> recipes that only exist through their LFO (SWP) are never picked
+static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid, uint8_t noLfo)
 {
 	float w[POOL_MAX];
 	float sum = 0;
@@ -628,6 +657,7 @@ static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid)
 		const PoolEntry* e = &pool->e[i];
 		w[i] = (float)e->w0 + ((float)e->w1 - (float)e->w0) * amt;	// amt = type spread
 		if(e->a == avoid && pool->n > 1) w[i] = 0;
+		if(noLfo && e->a == RND_A_SWEEP) w[i] = 0;
 		sum += w[i];
 	}
 	if(sum <= 0) return pool->e[0].a;
@@ -681,6 +711,15 @@ static float decayMs(uint8_t d)
 {
 	const float x = d / 127.f;
 	return 20.f + x*x*1500.f;
+}
+
+// attack byte -> time to the peak [ms], measured on the engine (host render)
+static float attackMs(uint8_t a)
+{
+	static const uint16_t t[14] = { 2, 11, 25, 44, 64, 95, 127, 177, 244, 351, 535, 930, 2470, 2470 };
+	const uint8_t i = a / 10;
+	const float f = (a - i*10) / 10.f;
+	return t[i] + (t[i+1] - t[i]) * f;
 }
 
 // pitch class match against key root / fifth
@@ -771,6 +810,7 @@ static const float rndLoudTarget[RND_A_COUNT] =
 	[RND_A_CLICK] = -15.0f, [RND_A_ZAP]   = -13.5f, [RND_A_BIT]  = -14.0f,
 	[RND_A_STUTTER]=-14.0f, [RND_A_METAL] = -16.0f, [RND_A_HISS] = -21.0f,
 	[RND_A_TONE]  = -21.0f,	// HIS / TON: hat level
+	[RND_A_SWEEP] = -14.0f, [RND_A_REV]   = -14.0f,
 };
 
 static float clip127(int x) { return (float)(x < 0 ? 0 : x > 127 ? 127 : x); }
@@ -1016,7 +1056,7 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 	// 6. musical clamps (VOL: set by the loudness model at the end)
 	// GLT: crush is part of the sound (BIT / DAT just break up); never total
 	setRole(p, v, R_DECIM, clampi(getRole(p, v, R_DECIM), glt ? 40 : exp ? 88 : 95, 127));
-	setRole(p, v, R_AEGA,  clampi(getRole(p, v, R_AEGA), 0, 12));
+	setRole(p, v, R_AEGA,  clampi(getRole(p, v, R_AEGA), 0, a == RND_A_REV ? 100 : 12));	// REV: the swell
 	setRole(p, v, R_AEGD,  clampi(getRole(p, v, R_AEGD), 2, 127));	// decay 0 = no hit (EXP clap + Hz tightening)
 	setRole(p, v, R_RESO,  clampi(getRole(p, v, R_RESO), 0, 118));
 	{
@@ -1129,6 +1169,23 @@ static int8_t applyLfo(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 		retrig = v + 1;												// restarted by the own voice
 		break;
 	}
+	case LP_SWEEP:
+	{
+		// one sweep per hit: falling (closes) or rising (opens), deep
+		wave  = rng_u(r) < 0.5f ? LW_SDN : LW_SUP;
+		const float ms = decayMs((uint8_t)getRole(p, v, R_AEGD));
+		rate  = lfoByteFromHz(1000.f / (1.3f * ms)) + rng_int(r, -2, 2);
+		depth = rng_int(r, 40, 80);
+		retrig = v + 1;
+		break;
+	}
+	case LP_RISE:
+		// rising saw over the swell: the filter opens until the cut
+		wave  = LW_SUP;
+		rate  = lfoByteFromHz(1000.f / attackMs((uint8_t)getRole(p, v, R_AEGA))) + rng_int(r, -1, 1);
+		depth = rng_int(r, 30, 60);
+		retrig = v + 1;
+		break;
 	case LP_SH:
 		wave  = LW_RND;
 		rate  = g->type == RND_TYPE_GLT ? rng_int(r, 38, 54)			// ~6 .. 17 Hz: other value nearly per hit
@@ -1182,7 +1239,7 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 	{
 		uint8_t avoid = 0xff;
 		if(v == 2 || v == 4 || v == 5) avoid = a[v-1];
-		a[v] = pickFromPool(&r, &pools[v], g.amt, avoid);
+		a[v] = pickFromPool(&r, &pools[v], g.amt, avoid, !cfg->mod);
 	}
 
 	for(uint8_t v=0; v<6; v++)
