@@ -1333,6 +1333,20 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 		{
 			const int8_t s = applyLfo(p, v, a[v], &g, &r);
 			if(res) res->lfoSlot[v] = s;
+			if(s < 0)
+			{
+				// recipe without LFO (e.g. GLT CLK after a SWP): the voice's own
+				// LFO route from an earlier click must not move the new sound
+				for(uint8_t i=0;i<CV_SLOTS_PER_VOICE;i++)
+				{
+					const uint8_t sl = v * CV_SLOTS_PER_VOICE + i;
+					if(p[PAR_CV_MOD_AMT_1 + sl] && p[PAR_CV_SRC_1 + sl] == CV_SRC_LFO1 + v)
+					{
+						p[PAR_CV_MOD_AMT_1 + sl] = 0;
+						p[PAR_CV_DEST_1 + sl] = 0;
+					}
+				}
+			}
 		}
 		else
 		{
