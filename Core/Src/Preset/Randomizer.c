@@ -620,6 +620,18 @@ static const RndArch arch[RND_A_COUNT] =
 			 [R_MODAMT]=RG(0,0), [R_FMAMT]=RG(24,16), [R_NOISEMIX]=RG(30,20), [R_NOISEFREQ]=RG(110,17),
 			 [R_FILTFREQ]=RG(74,20), [R_RESO]=RG(10,10), [R_FILTDRIVE]=RG(50,30), [R_DRIVE]=RG(96,20),
 			 [R_TRANSVOL]=RG(70,40), [R_TRANSFREQ]=RG(64,50), [R_VOL]=RG(100,12), [R_DECIM]=RG(120,7) } },
+
+	// blaster: ultrasonic start (deep pitch envelope from far above), a fast
+	// fall down - space zaps, blasters, lasers. Sometimes FM for the "space" grit
+	[RND_A_BLASTER] = { .name="BLS", .wave={C1(W_SIN),C1(W_TRI),C1(W_REC)}, .modWave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(1)|TR(2),
+		.flags=F_NOFLIP|F_FIXWAVE,
+		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
+		.r={ [R_COARSE]=RG(80,16), [R_AEGA]=RG(0,0), [R_AEGD]=RG(20,12), [R_VOLSLOPE]=RG(20,14),
+			 [R_MODAMT]=RG(120,7), [R_PITCHSLOPE]=RG(30,30), [R_MODEG]=RG(16,12),
+			 [R_FMAMT]=RG(30,30), [R_FMFREQ]=RG(90,24), [R_NOISEMIX]=RG(8,8),
+			 [R_FILTFREQ]=RG(122,5), [R_RESO]=RG(10,10), [R_DRIVE]=RG(80,22), [R_TRANSVOL]=RG(10,10),
+			 [R_VOL]=RG(100,12), [R_DECIM]=RG(118,9) } },
 };
 
 //---- pools ----------------------------------------------------------------
@@ -654,9 +666,9 @@ static const Pool poolExp[6] =
 static const Pool poolGlt[6] =
 {
 	{ 3, { {RND_A_TICK,4,4}, {RND_A_SUB,3,3}, {RND_A_DKICK,3,3} } },
-	{ 6, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2}, {RND_A_HUM,2,2} } },
-	{ 7, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,1,1}, {RND_A_HUM,2,2} } },
-	{ 5, { {RND_A_CLICK,5,5}, {RND_A_BIT,3,3}, {RND_A_STUTTER,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2} } },
+	{ 7, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2}, {RND_A_HUM,2,2}, {RND_A_BLASTER,2,2} } },
+	{ 8, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,1,1}, {RND_A_HUM,2,2}, {RND_A_BLASTER,3,3} } },
+	{ 5, { {RND_A_CLICK,5,5}, {RND_A_BIT,3,3}, {RND_A_STUTTER,2,2}, {RND_A_SWEEP,2,2}, {RND_A_REV,2,2} } },	// BLS: the snare drive makes it too loud
 	{ 4, { {RND_A_METAL,6,6}, {RND_A_STUTTER,2,2}, {RND_A_DATA,2,2}, {RND_A_REV,2,2} } },
 	{ 4, { {RND_A_HISS,5,5}, {RND_A_TONE,3,3}, {RND_A_CLICK,2,2}, {RND_A_REV,1,1} } },
 };
@@ -828,6 +840,7 @@ static const float rndLoudTarget[RND_A_COUNT] =
 	[RND_A_STUTTER]=-14.0f, [RND_A_METAL] = -16.0f, [RND_A_HISS] = -21.0f,
 	[RND_A_TONE]  = -21.0f,	// HIS / TON: hat level
 	[RND_A_SWEEP] = -14.0f, [RND_A_REV]   = -14.0f, [RND_A_HUM] = -13.5f,
+	[RND_A_BLASTER]=-13.5f,
 };
 
 static float clip127(int x) { return (float)(x < 0 ? 0 : x > 127 ? 127 : x); }
@@ -1101,7 +1114,8 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 
 	// HUM variants (Roman's settings from the module): the 50 Hz buzz stays,
 	// envelope and second oscillator change. ~35 % swell, ~30 % tonal mix,
-	// the rest the classic buzz with noise crackle, short and varied
+	// the rest the classic short rectangle buzz (hard FM tri, or noise crackle).
+	// Note: Roman's numbers are display values; FM frq shows byte - 60
 	if(a == RND_A_HUM)
 	{
 		const float x = rng_u(r);
@@ -1117,7 +1131,7 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 			setRole(p, v, R_MODWAVE,  W_REC);
 			setRole(p, v, R_MIXMOD,   rng_u(r) < 0.5f ? 0 : 1);		// 0 = FM, 1 = mix
 			setRole(p, v, R_FMAMT,    clampi(50 + rng_int(r, -6, 6), 0, 127));
-			setRole(p, v, R_FMFREQ,   clampi(40 + rng_int(r, -4, 4), 0, 127));
+			setRole(p, v, R_FMFREQ,   clampi(100 + rng_int(r, -4, 4), 0, 127));	// display frq ~40 (= byte - 60)
 		}
 		else if(x < 0.65f)
 		{
@@ -1126,15 +1140,25 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 			setRole(p, v, R_MODWAVE,  w[rng_int(r, 0, 3)]);
 			setRole(p, v, R_MIXMOD,   1);
 			setRole(p, v, R_FMAMT,    rng_int(r, 16, 26));
-			setRole(p, v, R_FMFREQ,   rng_int(r, 20, 40));
+			setRole(p, v, R_FMFREQ,   rng_int(r, 80, 100));					// display frq 20..40
 		}
 		else
 		{
-			// classic buzz: mostly short, different every time, so it does not
-			// take over the kit (decay skewed short: min of two rolls)
-			const int d1 = rng_int(r, 4, 30), d2 = rng_int(r, 4, 30);
+			// classic buzz: rectangle, short and different every time so it does
+			// not take over the kit (decay skewed short: min of two rolls).
+			// Mostly hard FM with a triangle modulator above the hum (display frq
+			// >= 0), sometimes the noise crackle
+			const int d1 = rng_int(r, 3, 18), d2 = rng_int(r, 3, 18);
+			setRole(p, v, R_WAVE,     W_REC);
 			setRole(p, v, R_AEGD,     d1 < d2 ? d1 : d2);
 			setRole(p, v, R_VOLSLOPE, rng_int(r, 20, 70));
+			if(rng_u(r) < 0.7f)
+			{
+				setRole(p, v, R_MODWAVE, W_TRI);
+				setRole(p, v, R_MIXMOD,  0);								// FM
+				setRole(p, v, R_FMAMT,   rng_int(r, 90, 124));
+				setRole(p, v, R_FMFREQ,  rng_int(r, 60, 96));				// display frq 0..36
+			}
 		}
 	}
 	if(getRole(p, v, R_WAVE) == W_PWM)
