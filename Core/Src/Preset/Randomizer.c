@@ -1098,6 +1098,37 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 		const int dc = getRole(p, v, R_AEGD);
 		setRole(p, v, R_AEGDOPEN, clampi(getRole(p, v, R_AEGDOPEN), dc + 6, 127));
 	}
+
+	// HUM variants (Roman's settings from the module): the 50 Hz buzz stays,
+	// envelope and second oscillator change. ~35 % swell, ~30 % tonal mix,
+	// the rest the classic short buzz with noise crackle (recipe as is)
+	if(a == RND_A_HUM)
+	{
+		const float x = rng_u(r);
+		if(x < 0.35f)
+		{
+			// swell: slow attack and a hard end (decay 0 is fine here: the
+			// attack carries the sound), second oscillator as FM or mix
+			static const uint8_t env[3][3] = { {52,0,0}, {70,8,20}, {62,8,0} };	// a, d, slope
+			const uint8_t* e = env[rng_int(r, 0, 2)];
+			setRole(p, v, R_AEGA,     clampi(e[0] + rng_int(r, -4, 4), 40, 80));
+			setRole(p, v, R_AEGD,     e[1] ? clampi(e[1] + rng_int(r, -2, 2), 2, 127) : 0);
+			setRole(p, v, R_VOLSLOPE, e[2] ? clampi(e[2] + rng_int(r, -4, 4), 0, 127) : 0);
+			setRole(p, v, R_MODWAVE,  W_REC);
+			setRole(p, v, R_MIXMOD,   rng_u(r) < 0.5f ? 0 : 1);		// 0 = FM, 1 = mix
+			setRole(p, v, R_FMAMT,    clampi(50 + rng_int(r, -6, 6), 0, 127));
+			setRole(p, v, R_FMFREQ,   clampi(40 + rng_int(r, -4, 4), 0, 127));
+		}
+		else if(x < 0.65f)
+		{
+			// tonal mix: a low second oscillator beating against the 50 Hz
+			static const uint8_t w[4] = { W_SIN, W_TRI, W_SAW, W_REC };	// no noise / PWM
+			setRole(p, v, R_MODWAVE,  w[rng_int(r, 0, 3)]);
+			setRole(p, v, R_MIXMOD,   1);
+			setRole(p, v, R_FMAMT,    rng_int(r, 16, 26));
+			setRole(p, v, R_FMFREQ,   rng_int(r, 20, 40));
+		}
+	}
 	if(getRole(p, v, R_WAVE) == W_PWM)
 		setRole(p, v, R_PWM, clampi(getRole(p, v, R_PWM), 24, 104));
 
