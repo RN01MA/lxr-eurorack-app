@@ -68,8 +68,9 @@ typedef struct RandomizerResultStruct
 
 /* Generate a kit into p (indexed by PAR_xxx, at least END_OF_SOUND_PARAMETERS).
  * Only the sound parameters of unlocked voices (and, with mod on, their LFO
- * settings and one CV-matrix slot per voice) are written. FX, routing, pans,
- * velocity and every other parameter keep the value they have in p.
+ * settings and one CV-matrix slot per voice) are written; GLT also sets the
+ * pans of the rolled voices (MOD on: spread, MOD off: middle). FX, routing,
+ * pans (CLS / EXP), velocity and every other parameter keep their value in p.
  * seed: any value (0 is remapped), e.g. from the hardware TRNG.
  * res may be NULL. */
 void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed, RandomizerResult* res);

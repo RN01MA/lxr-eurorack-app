@@ -103,6 +103,7 @@ static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x;
 #define RND_TOO_QUIET_DB	4.0f	// re-roll a voice predicted > 4 dB under its target at VOL 127
 #define RND_SPREAD_EXP	0.75f
 #define RND_SPREAD_GLT	0.60f	// GLT recipes are already extreme: moderate spread
+#define RND_PAN_CENTRE	63		// PAR_PANx middle (display 0)
 #define RND_REV_PER_KIT	0.18f	// GLT: share of kits with a reverse swell (REV), one voice at most
 
 //---- voice roles ----------------------------------------------------------
@@ -1434,6 +1435,29 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 					p[PAR_CV_MOD_AMT_1 + s] = 0;
 					p[PAR_CV_DEST_1 + s] = 0;
 				}
+			}
+		}
+	}
+
+	// GLT: the stereo picture is part of the sound (static pans, no LFO).
+	// MOD on: the micro sounds are placed left / right, sides alternating;
+	// kick / sub / hum / reverse stay in the middle (mono low end).
+	// MOD off: the rolled voices go back to the middle. CLS / EXP never touch pans
+	if(g.type == RND_TYPE_GLT)
+	{
+		static const uint8_t panPar[6] = { PAR_PAN1, PAR_PAN2, PAR_PAN3, PAR_PAN4, PAR_PAN5, PAR_PAN6 };
+		int side = rng_u(&r) < 0.5f ? -1 : 1;
+		for(uint8_t v=0; v<6; v++)
+		{
+			if(cfg->lockMask & (1u << v)) continue;
+			const uint8_t x = a[v];
+			const uint8_t centre = !cfg->mod || x == RND_A_TICK || x == RND_A_DKICK || x == RND_A_SUB ||
+								   x == RND_A_HUM || x == RND_A_REV;
+			if(centre) p[panPar[v]] = RND_PAN_CENTRE;
+			else
+			{
+				p[panPar[v]] = (uint8_t)clampi(RND_PAN_CENTRE + side * rng_int(&r, 18, 60), 0, 127);
+				side = -side;
 			}
 		}
 	}
