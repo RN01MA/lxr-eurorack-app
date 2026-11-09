@@ -25,6 +25,7 @@
 // TYP
 #define RND_TYPE_CLS		0	// classic techno: fixed roles, tight spread
 #define RND_TYPE_EXP		1	// experimental: synth archetypes, wider spread
+#define RND_TYPE_GLT		2	// glitch / microsound: sine ticks, clicks, crushed noise
 
 // Hz (spectral slotting)
 #define RND_HZ_OFF			0	// raw archetypes
@@ -36,7 +37,7 @@
 
 typedef struct RandomizerConfigStruct
 {
-	uint8_t type;		// RND_TYPE_CLS / RND_TYPE_EXP
+	uint8_t type;		// RND_TYPE_CLS / RND_TYPE_EXP / RND_TYPE_GLT
 	int8_t  key;		// RND_KEY_OFF or 0..11 (C..B)
 	uint8_t mod;		// 1 = one LFO route per voice (free / LFO slots only), 0 = LFO routes
 						// of the regenerated voices removed; cv1..cv5 / accent never touched
@@ -51,6 +52,9 @@ enum RndArchIds
 	RND_A_PERC, RND_A_BELL, RND_A_STAB, RND_A_SNARE, RND_A_CLAP, RND_A_SHAKER,
 	RND_A_HIHAT, RND_A_CYMBAL, RND_A_RIDE, RND_A_NOISE,
 	RND_A_REESE, RND_A_FOLD, RND_A_WT, RND_A_ACID, RND_A_GHOST,
+	// GLT
+	RND_A_TICK, RND_A_DKICK, RND_A_SUB, RND_A_BLIP, RND_A_POP, RND_A_DATA,
+	RND_A_CLICK, RND_A_ZAP, RND_A_BIT, RND_A_STUTTER, RND_A_METAL, RND_A_HISS, RND_A_TONE,
 	RND_A_COUNT,
 	RND_A_LOCKED = 0xff
 };

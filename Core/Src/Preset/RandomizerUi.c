@@ -81,7 +81,7 @@ static void barLight(uint8_t step)	// step 1..7 = button 2..8
 static void generate()
 {
 	RandomizerConfig c;
-	c.type     = activeParameters[PAR_RND_TYPE] ? RND_TYPE_EXP : RND_TYPE_CLS;
+	c.type     = activeParameters[PAR_RND_TYPE] <= RND_TYPE_GLT ? activeParameters[PAR_RND_TYPE] : RND_TYPE_CLS;
 	c.key      = activeParameters[PAR_RND_KEY] ? (int8_t)(activeParameters[PAR_RND_KEY] - 1) : RND_KEY_OFF;
 	c.mod      = activeParameters[PAR_RND_MOD] ? 1 : 0;
 	c.hz       = activeParameters[PAR_RND_HZ];
@@ -247,7 +247,7 @@ uint8_t RndUi_paint(char buf[2][17])
 			const uint8_t a = rnd_result.arch[v];
 			put3(&buf[v/3][(v%3)*4], a == RND_A_LOCKED ? "---" : Randomizer_archName(a));
 		}
-		put3(&buf[0][13], rnd_lastCfg.type == RND_TYPE_EXP ? "EXP" : "CLS");
+		put3(&buf[0][13], rnd_lastCfg.type == RND_TYPE_GLT ? "GLT" : rnd_lastCfg.type == RND_TYPE_EXP ? "EXP" : "CLS");
 		if(rnd_lastCfg.key >= 0)
 		{
 			const char* k = rnd_keyText[(uint8_t)rnd_lastCfg.key];

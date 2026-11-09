@@ -27,7 +27,7 @@
 
 // The CMake build passes FIRMWARE_VERSION from project(VERSION); this is the fallback.
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.0"
+#define FIRMWARE_VERSION "1.1"
 #endif
 //#define f_unmount(path) f_mount(0, path, 0)
 

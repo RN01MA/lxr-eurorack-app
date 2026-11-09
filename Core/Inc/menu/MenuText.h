@@ -199,12 +199,13 @@ const char djfSlopeNames[][4] =
 	{"24"},
 };
 //-----------------------------------------------------------------
-// kit randomizer: type (RND_TYPE_CLS/EXP), key (COA), spectral slotting (RND_HZ_x)
+// kit randomizer: type (RND_TYPE_CLS/EXP/GLT), key (COA), spectral slotting (RND_HZ_x)
 const char rndTypeNames[][4] =
 {
-	{2},		//number of entries
+	{3},		//number of entries
 	{"CLS"},
 	{"EXP"},
+	{"GLT"},
 };
 const char rndKeyNames[][4] =
 {

@@ -27,7 +27,7 @@ project(LXR_V2_STM32F765_Eurorack
 
 # LXRE_MX: own version number (based on the original firmware V${PROJECT_VERSION}).
 # Shown on the boot screen and used in the update file name.
-set(MX_VERSION 1.0)
+set(MX_VERSION 1.1)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)

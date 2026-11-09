@@ -102,6 +102,7 @@ static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x;
 #define RND_SPREAD_CLS	0.55f
 #define RND_TOO_QUIET_DB	4.0f	// re-roll a voice predicted > 4 dB under its target at VOL 127
 #define RND_SPREAD_EXP	0.75f
+#define RND_SPREAD_GLT	0.60f	// GLT recipes are already extreme: moderate spread
 
 //---- voice roles ----------------------------------------------------------
 enum RndRoles
@@ -252,8 +253,8 @@ typedef struct RndArchStruct
 	uint8_t bandLo, bandHi;	// pitch band (MIDI notes), 0 = none
 	uint8_t hpSoft;			// Hz Sft: HP cutoff byte (desktop tool slotting)
 	uint16_t hpHardHz;		// Hz Hrd: HP cutoff [Hz]; 0 = no HP slotting
-	uint8_t lfoProf[2];		// [CLS, EXP]
-	uint8_t lfoTgt[2];		// role modulated
+	uint8_t lfoProf[3];		// [CLS, EXP, GLT]
+	uint8_t lfoTgt[3];		// role modulated
 	RndRange r[R_NUM];		// continuous roles: centre, half range (bytes)
 } RndArch;
 
@@ -449,6 +450,135 @@ static const RndArch arch[RND_A_COUNT] =
 			 [R_MODAMT]=RG(60,25), [R_PITCHSLOPE]=RG(22,12), [R_MODEG]=RG(22,14),
 			 [R_FILTFREQ]=RG(100,20), [R_RESO]=RG(10,12), [R_TRANSVOL]=RG(30,30), [R_TRANSFREQ]=RG(60,40),
 			 [R_FMAMT]=RG(0,12), [R_VOL]=RG(80,10), [R_DECIM]=RG(122,6) } },
+
+	//------------------------------------------------ GLT recipes (glitch / microsound)
+	// clean: TCK SUB BLP CLK MTL HIS TON (Alva Noto: sine, click, hiss)
+	// dirty: DKK POP DAT ZAP BIT STT    (Byetone: drive, crush, FM, stutter)
+
+	// sine tick: a very short low sine with a little pitch drop
+	[RND_A_TICK] = { .name="TCK", .wave={C1(W_SIN)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(0)|TR(2)|TR(3)|TR(10),
+		.flags=F_TONAL|F_NOFLIP|F_FIXWAVE, .bandLo=34, .bandHi=44,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_AEGD},
+		.r={ [R_COARSE]=RG(40,6), [R_AEGA]=RG(0,0), [R_AEGD]=RG(9,4), [R_VOLSLOPE]=RG(12,8),
+			 [R_MODAMT]=RG(30,20), [R_PITCHSLOPE]=RG(14,8), [R_MODEG]=RG(8,5),
+			 [R_FILTFREQ]=RG(120,7), [R_RESO]=RG(0,0), [R_TRANSVOL]=RG(40,30), [R_TRANSFREQ]=RG(70,40),
+			 [R_FMAMT]=RG(0,0), [R_DRIVE]=RG(80,20), [R_VOL]=RG(110,10), [R_DECIM]=RG(127,0) } },
+
+	// digital kick: short, punchy, driven, slightly crushed
+	[RND_A_DKICK] = { .name="DKK", .wave={C1(W_SIN),C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(0)|TR(2)|TR(3)|TR(4)|TR(5)|TR(10),
+		.flags=F_TONAL|F_NOTIGHT|F_NOFLIP|F_FIXWAVE, .bandLo=29, .bandHi=37,
+		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
+		.r={ [R_COARSE]=RG(33,4), [R_AEGA]=RG(0,0), [R_AEGD]=RG(18,7), [R_VOLSLOPE]=RG(22,10),
+			 [R_MODAMT]=RG(95,20), [R_PITCHSLOPE]=RG(22,10), [R_MODEG]=RG(16,8),
+			 [R_FILTFREQ]=RG(104,16), [R_RESO]=RG(14,14), [R_TRANSVOL]=RG(70,30), [R_TRANSFREQ]=RG(60,40),
+			 [R_FMAMT]=RG(0,10), [R_DRIVE]=RG(100,20), [R_VOL]=RG(110,10), [R_DECIM]=RG(106,14) } },
+
+	// 808 sub: long sine boom, gentle pitch drop, saturated
+	[RND_A_SUB] = { .name="SUB", .wave={C1(W_SIN)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(2)|TR(4),
+		.flags=F_TONAL|F_NOTIGHT|F_NOFLIP|F_FIXWAVE, .bandLo=26, .bandHi=34,
+		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
+		.r={ [R_COARSE]=RG(30,4), [R_AEGA]=RG(0,1), [R_AEGD]=RG(72,22), [R_VOLSLOPE]=RG(30,14),
+			 [R_MODAMT]=RG(45,18), [R_PITCHSLOPE]=RG(30,12), [R_MODEG]=RG(34,12),
+			 [R_FILTFREQ]=RG(116,10), [R_RESO]=RG(0,8), [R_TRANSVOL]=RG(16,16),
+			 [R_FMAMT]=RG(0,0), [R_DRIVE]=RG(76,16), [R_VOL]=RG(110,10), [R_DECIM]=RG(127,0) } },
+
+	// sine blip: short high pure ping, in key with COA
+	[RND_A_BLIP] = { .name="BLP", .wave={C1(W_SIN)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.flags=F_TONAL|F_NOFLIP|F_FIXWAVE, .bandLo=76, .bandHi=96,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_AEGD},
+		.r={ [R_COARSE]=RG(86,10), [R_AEGA]=RG(0,0), [R_AEGD]=RG(9,5), [R_VOLSLOPE]=RG(10,8),
+			 [R_MODAMT]=RG(0,4), [R_MODEG]=RG(4,3), [R_FMAMT]=RG(0,0),
+			 [R_FILTFREQ]=RG(127,0), [R_RESO]=RG(0,0), [R_VOL]=RG(100,10), [R_DECIM]=RG(127,0) } },
+
+	// FM pop: far apart carrier / modulator -> pops, bubbles, crackle
+	[RND_A_POP] = { .name="POP", .wave={C1(W_SIN),C1(W_TRI)}, .modWave={C1(W_SAW),C1(W_SIN),C1(W_REC)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(1)|TR(2)|TR(4),
+		.flags=F_TONAL|F_NOFLIP|F_FIXWAVE, .bandLo=52, .bandHi=76,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_FMFREQ},
+		.r={ [R_COARSE]=RG(62,14), [R_AEGA]=RG(0,0), [R_AEGD]=RG(7,5), [R_VOLSLOPE]=RG(8,6),
+			 [R_MODAMT]=RG(20,20), [R_PITCHSLOPE]=RG(10,8), [R_MODEG]=RG(10,6),
+			 [R_FMAMT]=RG(96,26), [R_FMFREQ]=RG(108,18),
+			 [R_FILTFREQ]=RG(108,16), [R_RESO]=RG(20,20), [R_DRIVE]=RG(92,28), [R_TRANSVOL]=RG(10,10),
+			 [R_VOL]=RG(100,12), [R_DECIM]=RG(118,9) } },
+
+	// data: modem / fax chirps - square FM, pitch jumps, crushed. MOD on: S&H pitch per hit
+	[RND_A_DATA] = { .name="DAT", .wave={C1(W_REC),C1(W_PWM)}, .modWave={C1(W_REC),C1(W_SAW)}, .filt={C1(FT_LP),C1(FT_BP)}, .mixMod=MM_FM,
+		.trans=TR(1)|TR(6)|TR(7),
+		.flags=F_NOFLIP|F_FIXWAVE,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_COARSE},
+		.r={ [R_COARSE]=RG(92,14), [R_AEGA]=RG(0,0), [R_AEGD]=RG(12,7), [R_VOLSLOPE]=RG(6,6),
+			 [R_MODAMT]=RG(60,40), [R_PITCHSLOPE]=RG(4,4), [R_MODEG]=RG(6,4),
+			 [R_FMAMT]=RG(70,40), [R_FMFREQ]=RG(96,24), [R_PWM]=RG(64,30),
+			 [R_MODF1]=RG(100,24), [R_MODF2]=RG(70,40), [R_MODG1]=RG(90,30), [R_MODG2]=RG(60,40), [R_REPEAT]=RG(3,3),
+			 [R_FILTFREQ]=RG(112,14), [R_RESO]=RG(30,24), [R_DRIVE]=RG(70,30), [R_TRANSVOL]=RG(10,10),
+			 [R_VOL]=RG(96,14), [R_DECIM]=RG(78,26) } },
+
+	// click: transient + hard drive + 1-2 ms decay: only the peak passes
+	[RND_A_CLICK] = { .name="CLK", .wave={C1(W_SIN),C1(W_REC)}, .filt={C1(FT_HP),C1(FT_BP)},
+		.flags=F_FIXWAVE, .hpSoft=4, .hpHardHz=1500,
+		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
+		.r={ [R_COARSE]=RG(100,16), [R_AEGA]=RG(0,0), [R_AEGD]=RG(3,2), [R_AEGDOPEN]=RG(6,3), [R_VOLSLOPE]=RG(4,4),
+			 [R_MODAMT]=RG(40,30), [R_MODEG]=RG(3,2), [R_NOISEMIX]=RG(20,20),
+			 [R_FILTFREQ]=RG(70,30), [R_RESO]=RG(20,20), [R_TRANSVOL]=RG(104,20), [R_TRANSFREQ]=RG(64,50),
+			 [R_DRIVE]=RG(84,24), [R_VOL]=RG(100,14), [R_DECIM]=RG(127,0) } },
+
+	// zap: laser - big fast pitch drop, driven
+	[RND_A_ZAP] = { .name="ZAP", .wave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,
+		.trans=TR(1)|TR(2),
+		.flags=F_TONAL|F_NOFLIP|F_FIXWAVE, .bandLo=72, .bandHi=90,
+		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
+		.r={ [R_COARSE]=RG(82,10), [R_AEGA]=RG(0,0), [R_AEGD]=RG(14,6), [R_VOLSLOPE]=RG(14,8),
+			 [R_MODAMT]=RG(118,9), [R_PITCHSLOPE]=RG(30,14), [R_MODEG]=RG(16,8), [R_FMAMT]=RG(0,10),
+			 [R_FILTFREQ]=RG(118,9), [R_RESO]=RG(10,10), [R_DRIVE]=RG(84,26), [R_TRANSVOL]=RG(10,10),
+			 [R_VOL]=RG(100,12), [R_DECIM]=RG(116,10) } },
+
+	// bit: noise burst through heavy decimation, just breaking up
+	[RND_A_BIT] = { .name="BIT", .wave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_BP),C1(FT_HP)},
+		.hpSoft=3, .hpHardHz=1200,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_FILTFREQ},
+		.r={ [R_COARSE]=RG(70,20), [R_AEGA]=RG(0,0), [R_AEGD]=RG(9,6), [R_VOLSLOPE]=RG(10,8),
+			 [R_MODAMT]=RG(20,20), [R_NOISEMIX]=RG(110,17), [R_NOISEFREQ]=RG(100,27),
+			 [R_FILTFREQ]=RG(84,26), [R_RESO]=RG(30,24), [R_DRIVE]=RG(76,30), [R_TRANSVOL]=RG(20,20),
+			 [R_VOL]=RG(100,14), [R_DECIM]=RG(68,22) } },
+
+	// stutter: the AD envelope repeats (REPEAT) - a short burst of hits per trigger
+	[RND_A_STUTTER] = { .name="STT", .wave={C1(W_SIN),C1(W_REC)}, .filt={C1(FT_BP)},
+		.hpSoft=3, .hpHardHz=1500,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_FILTFREQ},
+		.r={ [R_COARSE]=RG(80,20), [R_AEGA]=RG(3,2), [R_AEGD]=RG(8,5), [R_VOLSLOPE]=RG(8,6),
+			 [R_REPEAT]=RG(8,4), [R_NOISEMIX]=RG(100,27), [R_NOISEFREQ]=RG(90,30),
+			 [R_MODF1]=RG(90,30), [R_MODF2]=RG(60,40), [R_MODG1]=RG(80,30), [R_MODG2]=RG(60,40),
+			 [R_FILTFREQ]=RG(80,24), [R_RESO]=RG(50,30), [R_DRIVE]=RG(70,30), [R_TRANSVOL]=RG(10,10),
+			 [R_VOL]=RG(100,14), [R_DECIM]=RG(100,20) } },
+
+	// metal: short digital FM ping on the metal engine, in key with COA
+	[RND_A_METAL] = { .name="MTL", .wave={C1(W_SIN),C1(W_SIN),C1(W_TRI)}, .modWave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP),C1(FT_BP)},
+		.flags=F_TONAL, .bandLo=76, .bandHi=96,
+		.lfoProf={LP_NONE,LP_NONE,LP_DRIFT}, .lfoTgt={0,0,R_MODG1},
+		.r={ [R_COARSE]=RG(86,10), [R_AEGA]=RG(0,0), [R_AEGD]=RG(10,6), [R_VOLSLOPE]=RG(8,6),
+			 [R_MODF1]=RG(96,24), [R_MODF2]=RG(110,16), [R_MODG1]=RG(50,26), [R_MODG2]=RG(36,26),
+			 [R_FILTFREQ]=RG(116,10), [R_RESO]=RG(20,20), [R_TRANSVOL]=RG(8,8),
+			 [R_VOL]=RG(96,14), [R_DECIM]=RG(127,0) } },
+
+	// hiss: a micro burst of high noise
+	[RND_A_HISS] = { .name="HIS", .wave={C1(W_NOI)}, .filt={C1(FT_HP)},
+		.hpSoft=12, .hpHardHz=3500,
+		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_AEGD},
+		.r={ [R_COARSE]=RG(110,14), [R_AEGA]=RG(0,0), [R_AEGD]=RG(5,2), [R_AEGDOPEN]=RG(11,6), [R_VOLSLOPE]=RG(4,4),
+			 [R_MODF1]=RG(90,30), [R_MODF2]=RG(110,16), [R_MODG1]=RG(40,30), [R_MODG2]=RG(40,30),
+			 [R_FILTFREQ]=RG(80,10), [R_RESO]=RG(30,20), [R_DRIVE]=RG(90,20),
+			 [R_VOL]=RG(90,16), [R_DECIM]=RG(127,0) } },
+
+	// tone: a very high, very short pure test tone (no FM)
+	[RND_A_TONE] = { .name="TON", .wave={C1(W_SIN)}, .modWave={C1(W_SIN)}, .filt={C1(FT_LP)},
+		.flags=F_TONAL, .bandLo=100, .bandHi=115,
+		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
+		.r={ [R_COARSE]=RG(106,8), [R_AEGA]=RG(0,0), [R_AEGD]=RG(4,3), [R_AEGDOPEN]=RG(12,6), [R_VOLSLOPE]=RG(6,6),
+			 [R_MODG1]=RG(0,0), [R_MODG2]=RG(0,0),
+			 [R_FILTFREQ]=RG(127,0), [R_RESO]=RG(0,0), [R_VOL]=RG(90,14), [R_DECIM]=RG(127,0) } },
 };
 
 //---- pools ----------------------------------------------------------------
@@ -476,6 +606,17 @@ static const Pool poolExp[6] =
 	{ 4, { {RND_A_SNARE,4,2}, {RND_A_CLAP,2,2}, {RND_A_SHAKER,1,1}, {RND_A_NOISE,0,2} } },
 	{ 6, { {RND_A_CLAP,2,1}, {RND_A_CYMBAL,2,2}, {RND_A_RIDE,2,2}, {RND_A_SHAKER,1,1}, {RND_A_BELL,0,2}, {RND_A_NOISE,0,1} } },
 	{ 5, { {RND_A_HIHAT,4,2}, {RND_A_CYMBAL,1,1}, {RND_A_RIDE,1,1}, {RND_A_SHAKER,1,1}, {RND_A_BELL,0,1} } },
+};
+
+// GLT: ~60 % clean (sine / click / hiss), ~40 % dirty (drive / crush / FM / stutter)
+static const Pool poolGlt[6] =
+{
+	{ 3, { {RND_A_TICK,4,4}, {RND_A_SUB,3,3}, {RND_A_DKICK,3,3} } },
+	{ 3, { {RND_A_BLIP,5,5}, {RND_A_POP,3,3}, {RND_A_DATA,2,2} } },
+	{ 4, { {RND_A_CLICK,4,4}, {RND_A_BLIP,3,3}, {RND_A_POP,2,2}, {RND_A_ZAP,2,2} } },
+	{ 3, { {RND_A_CLICK,5,5}, {RND_A_BIT,3,3}, {RND_A_STUTTER,2,2} } },
+	{ 3, { {RND_A_METAL,6,6}, {RND_A_STUTTER,2,2}, {RND_A_DATA,2,2} } },
+	{ 3, { {RND_A_HISS,5,5}, {RND_A_TONE,3,3}, {RND_A_CLICK,2,2} } },
 };
 
 static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid)
@@ -624,6 +765,12 @@ static const float rndLoudTarget[RND_A_COUNT] =
 	[RND_A_SNARE] = -10.0f, [RND_A_CLAP]  = -11.5f, [RND_A_NOISE] = -13.0f,
 	[RND_A_SHAKER]= -15.0f, [RND_A_HIHAT] = -20.0f,
 	[RND_A_CYMBAL]= -17.0f, [RND_A_RIDE]  = -17.0f,
+	// GLT: kick functions on top, micro sounds well under them
+	[RND_A_TICK]  = -12.0f, [RND_A_DKICK] =  -8.5f, [RND_A_SUB]  =  -9.0f,
+	[RND_A_BLIP]  = -16.0f, [RND_A_POP]   = -14.0f, [RND_A_DATA] = -15.5f,
+	[RND_A_CLICK] = -15.0f, [RND_A_ZAP]   = -13.5f, [RND_A_BIT]  = -14.0f,
+	[RND_A_STUTTER]=-14.0f, [RND_A_METAL] = -16.0f, [RND_A_HISS] = -21.0f,
+	[RND_A_TONE]  = -21.0f,	// HIS / TON: hat level
 };
 
 static float clip127(int x) { return (float)(x < 0 ? 0 : x > 127 ? 127 : x); }
@@ -681,6 +828,7 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 {
 	const RndArch* A = &arch[a];
 	const uint8_t exp = g->type == RND_TYPE_EXP;
+	const uint8_t glt = g->type == RND_TYPE_GLT;
 	const uint8_t anyKick = (A->flags & F_KICK) != 0;
 	const uint8_t isKick = anyKick && !exp;		// CLS: protected kick
 	const uint8_t expKick = anyKick && exp;		// EXP: free kick, wider bounds
@@ -866,7 +1014,8 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 	}
 
 	// 6. musical clamps (VOL: set by the loudness model at the end)
-	setRole(p, v, R_DECIM, clampi(getRole(p, v, R_DECIM), exp ? 88 : 95, 127));
+	// GLT: crush is part of the sound (BIT / DAT just break up); never total
+	setRole(p, v, R_DECIM, clampi(getRole(p, v, R_DECIM), glt ? 40 : exp ? 88 : 95, 127));
 	setRole(p, v, R_AEGA,  clampi(getRole(p, v, R_AEGA), 0, 12));
 	setRole(p, v, R_AEGD,  clampi(getRole(p, v, R_AEGD), 2, 127));	// decay 0 = no hit (EXP clap + Hz tightening)
 	setRole(p, v, R_RESO,  clampi(getRole(p, v, R_RESO), 0, 118));
@@ -982,7 +1131,8 @@ static int8_t applyLfo(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* r
 	}
 	case LP_SH:
 		wave  = LW_RND;
-		rate  = rng_int(r, 26, 40);									// ~2 .. 7 Hz
+		rate  = g->type == RND_TYPE_GLT ? rng_int(r, 38, 54)			// ~6 .. 17 Hz: other value nearly per hit
+										: rng_int(r, 26, 40);			// ~2 .. 7 Hz
 		depth = rng_int(r, 14, 30);
 		break;
 	}
@@ -1019,12 +1169,12 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 	rng_seed(&r, seed);
 
 	GenCtx g;
-	g.type = cfg->type == RND_TYPE_EXP ? RND_TYPE_EXP : RND_TYPE_CLS;
+	g.type = cfg->type <= RND_TYPE_GLT ? cfg->type : RND_TYPE_CLS;
 	g.hz   = cfg->hz <= RND_HZ_HARD ? cfg->hz : RND_HZ_SOFT;
 	g.key  = (cfg->key >= 0 && cfg->key < 12) ? cfg->key : RND_KEY_OFF;
-	g.amt  = g.type == RND_TYPE_EXP ? RND_SPREAD_EXP : RND_SPREAD_CLS;
+	g.amt  = g.type == RND_TYPE_EXP ? RND_SPREAD_EXP : g.type == RND_TYPE_GLT ? RND_SPREAD_GLT : RND_SPREAD_CLS;
 
-	const Pool* pools = g.type == RND_TYPE_EXP ? poolExp : poolCls;
+	const Pool* pools = g.type == RND_TYPE_EXP ? poolExp : g.type == RND_TYPE_GLT ? poolGlt : poolCls;
 
 	// archetypes: no doubles between neighbours (V2/V3, V4/V5, V5/V6)
 	uint8_t a[6];
