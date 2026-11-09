@@ -103,6 +103,7 @@ static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x;
 #define RND_TOO_QUIET_DB	4.0f	// re-roll a voice predicted > 4 dB under its target at VOL 127
 #define RND_SPREAD_EXP	0.75f
 #define RND_SPREAD_GLT	0.60f	// GLT recipes are already extreme: moderate spread
+#define RND_REV_PER_KIT	0.18f	// GLT: share of kits with a reverse swell (REV), one voice at most
 
 //---- voice roles ----------------------------------------------------------
 enum RndRoles
@@ -660,8 +661,10 @@ static const Pool poolGlt[6] =
 	{ 4, { {RND_A_HISS,5,5}, {RND_A_TONE,3,3}, {RND_A_CLICK,2,2}, {RND_A_REV,1,1} } },
 };
 
-// noLfo: MOD off -> recipes that only exist through their LFO (SWP) are never picked
-static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid, uint8_t noLfo)
+// excl: PICK_NO_SWEEP (MOD off: SWP only exists through its LFO), PICK_NO_REV
+#define PICK_NO_SWEEP	0x01
+#define PICK_NO_REV		0x02
+static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid, uint8_t excl)
 {
 	float w[POOL_MAX];
 	float sum = 0;
@@ -670,7 +673,8 @@ static uint8_t pickFromPool(Rng* r, const Pool* pool, float amt, uint8_t avoid, 
 		const PoolEntry* e = &pool->e[i];
 		w[i] = (float)e->w0 + ((float)e->w1 - (float)e->w0) * amt;	// amt = type spread
 		if(e->a == avoid && pool->n > 1) w[i] = 0;
-		if(noLfo && e->a == RND_A_SWEEP) w[i] = 0;
+		if((excl & PICK_NO_SWEEP) && e->a == RND_A_SWEEP) w[i] = 0;
+		if((excl & PICK_NO_REV)   && e->a == RND_A_REV)   w[i] = 0;
 		sum += w[i];
 	}
 	if(sum <= 0) return pool->e[0].a;
@@ -1254,13 +1258,34 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 
 	const Pool* pools = g.type == RND_TYPE_EXP ? poolExp : g.type == RND_TYPE_GLT ? poolGlt : poolCls;
 
+	// GLT reverse swell: a special effect, at most one per kit and only in
+	// about one kit of six (RND_REV_PER_KIT), on one of the rolled voices
+	int8_t revVoice = -1;
+	if(g.type == RND_TYPE_GLT && rng_u(&r) < RND_REV_PER_KIT)
+	{
+		static const uint8_t revW[6] = { 0, 3, 1, 3, 3, 1 };	// V2 / V4 / V5 more than V3 / V6
+		uint8_t sum = 0;
+		for(uint8_t v=0; v<6; v++) if(!(cfg->lockMask & (1u << v))) sum += revW[v];
+		if(sum)
+		{
+			int x = rng_int(&r, 0, sum - 1);
+			for(uint8_t v=0; v<6 && revVoice < 0; v++)
+			{
+				if(cfg->lockMask & (1u << v)) continue;
+				if(x < revW[v]) revVoice = (int8_t)v;
+				x -= revW[v];
+			}
+		}
+	}
+
 	// archetypes: no doubles between neighbours (V2/V3, V4/V5, V5/V6)
 	uint8_t a[6];
 	for(uint8_t v=0; v<6; v++)
 	{
 		uint8_t avoid = 0xff;
 		if(v == 2 || v == 4 || v == 5) avoid = a[v-1];
-		a[v] = pickFromPool(&r, &pools[v], g.amt, avoid, !cfg->mod);
+		if(v == revVoice) a[v] = RND_A_REV;
+		else a[v] = pickFromPool(&r, &pools[v], g.amt, avoid, (cfg->mod ? 0 : PICK_NO_SWEEP) | PICK_NO_REV);
 	}
 
 	for(uint8_t v=0; v<6; v++)
