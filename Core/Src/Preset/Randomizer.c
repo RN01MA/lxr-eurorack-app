@@ -1101,7 +1101,7 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 
 	// HUM variants (Roman's settings from the module): the 50 Hz buzz stays,
 	// envelope and second oscillator change. ~35 % swell, ~30 % tonal mix,
-	// the rest the classic short buzz with noise crackle (recipe as is)
+	// the rest the classic buzz with noise crackle, short and varied
 	if(a == RND_A_HUM)
 	{
 		const float x = rng_u(r);
@@ -1127,6 +1127,14 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 			setRole(p, v, R_MIXMOD,   1);
 			setRole(p, v, R_FMAMT,    rng_int(r, 16, 26));
 			setRole(p, v, R_FMFREQ,   rng_int(r, 20, 40));
+		}
+		else
+		{
+			// classic buzz: mostly short, different every time, so it does not
+			// take over the kit (decay skewed short: min of two rolls)
+			const int d1 = rng_int(r, 4, 30), d2 = rng_int(r, 4, 30);
+			setRole(p, v, R_AEGD,     d1 < d2 ? d1 : d2);
+			setRole(p, v, R_VOLSLOPE, rng_int(r, 20, 70));
 		}
 	}
 	if(getRole(p, v, R_WAVE) == W_PWM)
