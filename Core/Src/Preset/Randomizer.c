@@ -627,9 +627,10 @@ static const RndArch arch[RND_A_COUNT] =
 		.trans=TR(1)|TR(2),
 		.flags=F_NOFLIP|F_FIXWAVE,
 		.lfoProf={LP_NONE,LP_NONE,LP_NONE},
-		.r={ [R_COARSE]=RG(80,16), [R_AEGA]=RG(0,0), [R_AEGD]=RG(20,12), [R_VOLSLOPE]=RG(20,14),
-			 [R_MODAMT]=RG(120,7), [R_PITCHSLOPE]=RG(30,30), [R_MODEG]=RG(16,12),
-			 [R_FMAMT]=RG(30,30), [R_FMFREQ]=RG(90,24), [R_NOISEMIX]=RG(8,8),
+		// low landing note: the sweep is the event, not a bell (Roman: too many bells)
+		.r={ [R_COARSE]=RG(50,12), [R_AEGA]=RG(0,0), [R_AEGD]=RG(20,12), [R_VOLSLOPE]=RG(20,14),
+			 [R_MODAMT]=RG(122,5), [R_PITCHSLOPE]=RG(30,30), [R_MODEG]=RG(18,12),
+			 [R_FMAMT]=RG(10,10), [R_FMFREQ]=RG(70,20), [R_NOISEMIX]=RG(8,8),
 			 [R_FILTFREQ]=RG(122,5), [R_RESO]=RG(10,10), [R_DRIVE]=RG(80,22), [R_TRANSVOL]=RG(10,10),
 			 [R_VOL]=RG(100,12), [R_DECIM]=RG(118,9) } },
 };
@@ -1161,6 +1162,15 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 			}
 		}
 	}
+	// BLS: two characters mixed - low landing (recipe, ~60 %) or the brighter,
+	// bell-ish high landing with more FM (~40 %)
+	if(a == RND_A_BLASTER && rng_u(r) < 0.4f)
+	{
+		setRole(p, v, R_COARSE, rng_int(r, 70, 92));
+		setRole(p, v, R_FMAMT,  rng_int(r, 10, 50));
+		setRole(p, v, R_FMFREQ, rng_int(r, 70, 110));
+	}
+
 	if(getRole(p, v, R_WAVE) == W_PWM)
 		setRole(p, v, R_PWM, clampi(getRole(p, v, R_PWM), 24, 104));
 
