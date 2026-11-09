@@ -1,3 +1,27 @@
+# LXRE_MX — custom firmware for the Erica Synths LXR Eurorack module
+
+**LXRE_MX v1.0** by Roman (RN01MA) is an unofficial, modified version of the open-source LXR V2
+Eurorack firmware. It is not made, approved or supported by Erica Synths. Install at your own risk.
+
+What's new compared to the original firmware:
+
+- **Kit generator** (SHIFT+PERF): a new kit on every DRUM press, built from per-voice recipes with
+  automatic level balancing; hold voice buttons + DRUM to regenerate only those voices.
+  Settings: TYP (CLS/EXP), COA (key), MOD (LFO), Hz (spectral separation).
+- **Voices to the FX bus** in one move: hold SHIFT+FX and press voice buttons.
+- **DJ filter (DJf)** on the FX bus: one CUT knob, low-pass left, bypass in the centre, high-pass right;
+  12/24 dB, resonance, click-free switching.
+- **Click-free kit morphing**: switch-type parameters change once, half way through the morph.
+- **CPU load** shown in CONFIG.
+- Fixes for bugs in the original firmware (a voice filter that could fall silent until reboot,
+  out-of-bounds writes in the MIDI and modulation tables).
+
+The ready-made update file and the manual are attached to the
+[releases](https://github.com/RN01MA/lxr-eurorack-app/releases). The rest of this README describes
+building and installing, as in the original repository.
+
+---
+
 # LXR V2 Eurorack firmware (STM32F765VG)
 
 Firmware for the LXR V2 Eurorack drum module: an STM32F765 (Cortex-M7, 216 MHz) running the drum
