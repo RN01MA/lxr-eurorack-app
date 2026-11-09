@@ -598,16 +598,17 @@ static const RndArch arch[RND_A_COUNT] =
 	// Trigger it a step or two before the cut should land. MOD on: the
 	// filter opens with the swell (rising saw restarted by the voice)
 	[RND_A_REV] = { .name="REV", .wave={C1(W_SIN),C1(W_TRI),C1(W_SAW)}, .modWave={C1(W_SIN),C1(W_TRI)}, .filt={C1(FT_LP),C1(FT_LP),C1(FT_BP)}, .mixMod=MM_FM,
-		.flags=F_TONAL|F_NOTIGHT|F_NOFLIP|F_FIXWAVE, .bandLo=60, .bandHi=84,
+		.flags=F_TONAL|F_NOTIGHT|F_NOFLIP|F_FIXWAVE, .bandLo=40, .bandHi=60,
 		.lfoProf={LP_NONE,LP_NONE,LP_RISE}, .lfoTgt={0,0,R_FILTFREQ},
-		.r={ [R_COARSE]=RG(72,12), [R_AEGA]=RG(78,14), [R_AEGD]=RG(2,0), [R_AEGDOPEN]=RG(3,1), [R_VOLSLOPE]=RG(40,20),
-			 [R_MODAMT]=RG(0,6), [R_FMAMT]=RG(40,40), [R_FMFREQ]=RG(90,24),
+		// low and dark: a swell from below, not a bright riser
+		.r={ [R_COARSE]=RG(50,10), [R_AEGA]=RG(78,14), [R_AEGD]=RG(2,0), [R_AEGDOPEN]=RG(3,1), [R_VOLSLOPE]=RG(40,20),
+			 [R_MODAMT]=RG(0,6), [R_FMAMT]=RG(24,24), [R_FMFREQ]=RG(62,20),
 			 [R_NOISEMIX]=RG(110,17), [R_NOISEFREQ]=RG(100,27),
-			 [R_MODF1]=RG(90,30), [R_MODF2]=RG(110,16), [R_MODG1]=RG(70,30), [R_MODG2]=RG(60,30),
-			 [R_FILTFREQ]=RG(96,20), [R_RESO]=RG(30,24), [R_DRIVE]=RG(60,30),
+			 [R_MODF1]=RG(70,24), [R_MODF2]=RG(90,20), [R_MODG1]=RG(60,30), [R_MODG2]=RG(50,30),
+			 [R_FILTFREQ]=RG(64,20), [R_RESO]=RG(36,24), [R_DRIVE]=RG(60,30),
 			 [R_VOL]=RG(100,12), [R_DECIM]=RG(122,6) } },
 
-	// hum: touching a live jack - 50 Hz mains buzz (square, hard driven),
+	// hum: touching a live jack - 50 Hz mains buzz (square, hard driven, dark),
 	// contact crackle (noise mixed in + a click transient). Not in key: mains
 	// hum does not care. MOD on: the crackle changes per hit (S&H)
 	[RND_A_HUM] = { .name="HUM", .wave={C1(W_REC),C1(W_REC),C1(W_SAW)}, .modWave={C1(W_NOI)}, .filt={C1(FT_LP)}, .mixMod=MM_MIX,
@@ -616,7 +617,7 @@ static const RndArch arch[RND_A_COUNT] =
 		.lfoProf={LP_NONE,LP_NONE,LP_SH}, .lfoTgt={0,0,R_FMAMT},
 		.r={ [R_COARSE]=RG(31,0), [R_AEGA]=RG(0,2), [R_AEGD]=RG(34,16), [R_VOLSLOPE]=RG(50,20),
 			 [R_MODAMT]=RG(0,0), [R_FMAMT]=RG(24,16), [R_NOISEMIX]=RG(30,20), [R_NOISEFREQ]=RG(110,17),
-			 [R_FILTFREQ]=RG(86,22), [R_RESO]=RG(10,10), [R_FILTDRIVE]=RG(50,30), [R_DRIVE]=RG(96,20),
+			 [R_FILTFREQ]=RG(74,20), [R_RESO]=RG(10,10), [R_FILTDRIVE]=RG(50,30), [R_DRIVE]=RG(96,20),
 			 [R_TRANSVOL]=RG(70,40), [R_TRANSFREQ]=RG(64,50), [R_VOL]=RG(100,12), [R_DECIM]=RG(120,7) } },
 };
 
@@ -1006,10 +1007,10 @@ static float applyVoice(uint8_t* p, uint8_t v, uint8_t a, const GenCtx* g, Rng* 
 	setRole(p, v, R_COARSE, note);
 	note = getRole(p, v, R_COARSE);
 
-	// hum: mains frequency, 50 Hz (note 31 + 35 cent) or its octave 100 Hz
+	// hum: mains frequency, 50 Hz = note 31 + 35 cent
 	if(a == RND_A_HUM)
 	{
-		note = rng_u(r) < 0.7f ? 31 : 43;
+		note = 31;
 		setRole(p, v, R_COARSE, note);
 		setRole(p, v, R_FINE, 107);
 	}
