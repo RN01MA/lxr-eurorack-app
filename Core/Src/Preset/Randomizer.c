@@ -456,8 +456,8 @@ static const RndArch arch[RND_A_COUNT] =
 			 [R_FMAMT]=RG(0,12), [R_VOL]=RG(80,10), [R_DECIM]=RG(122,6) } },
 
 	//------------------------------------------------ GLT recipes (glitch / microsound)
-	// clean: TCK SUB BLP CLK MTL HIS TON (Alva Noto: sine, click, hiss)
-	// dirty: DKK POP DAT ZAP BIT STT    (Byetone: drive, crush, FM, stutter)
+	// clean: TCK SUB BLP CLK MTL HIS TON (sine, click, hiss)
+	// dirty: DKK POP DAT ZAP BIT STT    (drive, crush, FM, stutter)
 
 	// sine tick: a very short low sine with a little pitch drop
 	[RND_A_TICK] = { .name="TCK", .wave={C1(W_SIN)}, .filt={C1(FT_LP)}, .mixMod=MM_FM,

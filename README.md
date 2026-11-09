@@ -10,7 +10,7 @@ What's new compared to the original firmware:
 - **Kit generator** (SHIFT+PERF): a new kit on every DRUM press, built from per-voice recipes with
   automatic level balancing; hold voice buttons + DRUM to regenerate only those voices.
   Settings: TYP (CLS / EXP / GLT), COA (key), MOD (LFO), Hz (spectral separation).
-- **GLT** (new in v1.1): glitch / microsound kits in the Raster-Noton spirit - sine ticks, 808 sub,
+- **GLT** (new in v1.1): glitch / microsound kits - sine ticks, 808 sub,
   clicks, FM pops, modem chirps, blasters, 50 Hz jack hum, crushed noise, stutters, digital metal,
   rare reverse swells; with MOD on the micro sounds are spread in the stereo field.
 - **Voices to the FX bus** in one move: hold SHIFT+FX and press voice buttons.
