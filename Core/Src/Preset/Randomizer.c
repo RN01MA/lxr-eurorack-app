@@ -104,6 +104,11 @@ static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x;
 #define RND_SPREAD_EXP	0.75f
 #define RND_SPREAD_GLT	0.60f	// GLT recipes are already extreme: moderate spread
 #define RND_PAN_CENTRE	63		// PAR_PANx middle (display 0)
+#define RND_PAN_NONE	0xff	// gltPan: no pan placed by GLT
+
+// pan GLT last wrote per voice (RAM only): CLS / EXP put such a pan back to
+// the middle unless the user moved it since
+static uint8_t gltPan[6] = { RND_PAN_NONE, RND_PAN_NONE, RND_PAN_NONE, RND_PAN_NONE, RND_PAN_NONE, RND_PAN_NONE };
 #define RND_REV_PER_KIT	0.18f	// GLT: share of kits with a reverse swell (REV), one voice at most
 
 //---- voice roles ----------------------------------------------------------
@@ -1442,10 +1447,21 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 	// GLT: the stereo picture is part of the sound (static pans, no LFO).
 	// MOD on: the micro sounds are placed left / right, sides alternating;
 	// kick / sub / hum / reverse stay in the middle (mono low end).
-	// MOD off: the rolled voices go back to the middle. CLS / EXP never touch pans
+	// MOD off: the rolled voices go back to the middle.
+	// CLS / EXP keep the user's pans, but a pan GLT placed (and nobody moved
+	// since) goes back to the middle when such a voice is rolled
+	static const uint8_t panPar[6] = { PAR_PAN1, PAR_PAN2, PAR_PAN3, PAR_PAN4, PAR_PAN5, PAR_PAN6 };
+	if(g.type != RND_TYPE_GLT)
+	{
+		for(uint8_t v=0; v<6; v++)
+		{
+			if(cfg->lockMask & (1u << v)) continue;
+			if(gltPan[v] != RND_PAN_NONE && p[panPar[v]] == gltPan[v]) p[panPar[v]] = RND_PAN_CENTRE;
+			gltPan[v] = RND_PAN_NONE;
+		}
+	}
 	if(g.type == RND_TYPE_GLT)
 	{
-		static const uint8_t panPar[6] = { PAR_PAN1, PAR_PAN2, PAR_PAN3, PAR_PAN4, PAR_PAN5, PAR_PAN6 };
 		int side = rng_u(&r) < 0.5f ? -1 : 1;
 		for(uint8_t v=0; v<6; v++)
 		{
@@ -1459,6 +1475,7 @@ void Randomizer_generate(uint8_t* p, const RandomizerConfig* cfg, uint32_t seed,
 				p[panPar[v]] = (uint8_t)clampi(RND_PAN_CENTRE + side * rng_int(&r, 18, 60), 0, 127);
 				side = -side;
 			}
+			gltPan[v] = p[panPar[v]];
 		}
 	}
 }
