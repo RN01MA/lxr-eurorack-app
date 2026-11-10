@@ -5,6 +5,13 @@
 **LXRE_MX v1.1.1** by Roman (RN01MA) is an unofficial, modified version of the open-source LXR V2
 Eurorack firmware. It is not made, approved or supported by Erica Synths. Install at your own risk.
 
+This firmware is for owners of the LXR-DRUM Eurorack module. Besides a few small fixes to the original
+firmware, it adds some features that genuinely extend what the module can do. The goal was never to turn
+the LXR into a different instrument, an all-in-one combine, or to bury it under extra options. Quite the
+opposite: it stays true to the design philosophy of Erica Synths and Sonic Potions, keeps the familiar
+workflow, and only adds things that fit the instrument naturally. The LXR stays a drum module you play
+with your hands.
+
 What's new compared to the original firmware:
 
 - **Kit generator** (SHIFT+PERF): a new kit on every DRUM press, built from per-voice recipes with
