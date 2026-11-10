@@ -2,7 +2,7 @@
 
 <img src="docs/lxre_mx_v1.1_cover.jpg" alt="LXRE_MX v1.1 — custom firmware for the Erica Synths LXR Drum Module" width="600">
 
-**LXRE_MX v1.1** by Roman (RN01MA) is an unofficial, modified version of the open-source LXR V2
+**LXRE_MX v1.1.1** by Roman (RN01MA) is an unofficial, modified version of the open-source LXR V2
 Eurorack firmware. It is not made, approved or supported by Erica Synths. Install at your own risk.
 
 What's new compared to the original firmware:
@@ -19,7 +19,7 @@ What's new compared to the original firmware:
 - **Click-free kit morphing**: switch-type parameters change once, half way through the morph.
 - **CPU load** shown in CONFIG.
 - Fixes for bugs in the original firmware (a voice filter that could fall silent until reboot,
-  out-of-bounds writes in the MIDI and modulation tables; v1.1: further minor fixes).
+  out-of-bounds writes in the MIDI and modulation tables; v1.1 / v1.1.1: further minor fixes).
 
 The ready-made update file and the manual are attached to the
 [releases](https://github.com/RN01MA/lxr-eurorack-app/releases). The rest of this README describes
